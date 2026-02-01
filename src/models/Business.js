@@ -20,6 +20,11 @@ const Business = sequelize.define('Business', {
     type: DataTypes.STRING(255),
     allowNull: false,
   },
+  phone_e164: {
+    type: DataTypes.STRING(32),
+    allowNull: false,
+    comment: 'İşletme iletişim telefonu, E.164 (+90...)',
+  },
   password_hash: {
     type: DataTypes.STRING(255),
     allowNull: false,

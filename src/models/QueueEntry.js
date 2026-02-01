@@ -38,9 +38,15 @@ const QueueEntry = sequelize.define('QueueEntry', {
     defaultValue: 'waiting',
     comment: 'waiting | called | served | cancelled',
   },
+  queue_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+    comment: 'Sıranın geçerli olduğu gün (YYYY-MM-DD); her gün sıra 1’den başlar',
+  },
   position: {
     type: DataTypes.INTEGER,
     allowNull: true,
+    comment: 'O güne özel sıra numarası (0, 1, 2, ...); her gün 0\'dan başlar',
   },
   source_channel: {
     type: DataTypes.STRING(32),

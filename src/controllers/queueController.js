@@ -5,7 +5,20 @@ async function list(req, res, next) {
   try {
     await subscriptionService.requireCoreSubscription(req.businessId);
     const date = req.query.date;
-    const where = { business_id: req.businessId };
+    if (!date) {
+      return res.status(400).json({
+        code: 'validation_error',
+        message: 'date (YYYY-MM-DD) zorunludur. Sıra listesi günlük döner.',
+      });
+    }
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date) || Number.isNaN(new Date(date + 'T12:00:00').getTime())) {
+      return res.status(400).json({
+        code: 'validation_error',
+        message: 'date geçerli YYYY-MM-DD formatında olmalıdır.',
+      });
+    }
+    const where = { business_id: req.businessId, queue_date: date };
     const list = await QueueEntry.findAll({
       where,
       include: [
@@ -15,7 +28,7 @@ async function list(req, res, next) {
       ],
       order: [['position', 'ASC']],
     });
-    res.json({ queue: list });
+    res.json({ date, queue: list });
   } catch (err) {
     next(err);
   }

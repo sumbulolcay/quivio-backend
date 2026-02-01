@@ -10,7 +10,7 @@ async function getSettings(req, res, next) {
     }
     const settings = business.BusinessSetting || {};
     res.json({
-      business: { id: business.id, slug: business.slug, name: business.name, email: business.email },
+      business: { id: business.id, slug: business.slug, name: business.name, email: business.email, phone_e164: business.phone_e164 },
       working_hours: settings.working_hours,
       slot_duration: settings.slot_duration,
       max_parallel: settings.max_parallel,

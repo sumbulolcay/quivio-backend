@@ -184,13 +184,11 @@ async function createQueueEntry(req, res, next) {
     const Op = Sequelize.Op;
     const { QueueEntry } = require('../models');
     const todayStr = getTodayDateStr();
-    const dayStart = new Date(todayStr + 'T00:00:00');
-    const dayEnd = new Date(todayStr + 'T23:59:59');
     const existingToday = await QueueEntry.findOne({
       where: {
         business_id: business.id,
         customer_id: session.customerId,
-        created_at: { [Op.gte]: dayStart, [Op.lte]: dayEnd },
+        queue_date: todayStr,
       },
     });
     if (existingToday) {
@@ -199,14 +197,17 @@ async function createQueueEntry(req, res, next) {
         message: 'Bugün için zaten bir sıra numaranız var.',
       });
     }
-    const maxPos = await QueueEntry.max('position', { where: { business_id: business.id } });
-    const position = (maxPos || 0) + 1;
+    const maxPos = await QueueEntry.max('position', {
+      where: { business_id: business.id, queue_date: todayStr },
+    });
+    const position = (maxPos == null ? -1 : maxPos) + 1;
     const entry = await QueueEntry.create({
       business_id: business.id,
       employee_id: employeeId || null,
       customer_id: session.customerId,
       wa_user_id: null,
       status: 'waiting',
+      queue_date: todayStr,
       position,
       source_channel: 'web',
     });

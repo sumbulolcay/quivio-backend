@@ -21,8 +21,11 @@ const QueueEntry = require('./QueueEntry');
 const WhatsappSession = require('./WhatsappSession');
 const WhatsappMessageLog = require('./WhatsappMessageLog');
 const BookingSettings = require('./BookingSettings');
+const User = require('./User');
 
 Business.hasOne(BusinessSettings, { foreignKey: 'business_id' });
+Business.hasMany(User, { foreignKey: 'business_id' });
+User.belongsTo(Business, { foreignKey: 'business_id' });
 BusinessSettings.belongsTo(Business, { foreignKey: 'business_id' });
 
 Business.hasOne(BookingSettings, { foreignKey: 'business_id' });
@@ -95,6 +98,7 @@ WhatsappMessageLog.belongsTo(Business, { foreignKey: 'business_id' });
 
 module.exports = {
   sequelize,
+  User,
   Business,
   BusinessSettings,
   BookingSettings,

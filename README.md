@@ -36,6 +36,14 @@ npm run dev
 - `SMS_PROVIDER` (twilio), `TWILIO_*`
 - `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`
 - `NODE_ENV`, `PORT`, `SEQUELIZE_ALTER` (dev’de alter: true için)
+- `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD` – İlk açılışta super-admin kullanıcı oluşturulur (opsiyonel)
+
+## Kullanıcı ve roller
+
+- **User** tablosu: `email`, `password_hash`, `role` (business | super_admin), `business_id` (business rolü için zorunlu).
+- **business**: Sadece kendi işletmesine (`business_id`) yetkili. JWT’de `businessId` otomatik gelir.
+- **super_admin**: Tüm işletmeler üzerinde yetkili. İşletme kapsamı gerektiren isteklerde **X-Business-Id** header veya **businessId** query parametresi zorunlu. Önce `GET /admin/businesses` ile işletme listesini alıp bir `businessId` seçer.
+- Login yanıtı: `token`, `user: { id, email, role }`, rol business ise ek olarak `business: { id, slug, name }`.
 
 ## API Özeti
 
@@ -56,6 +64,9 @@ npm run dev
 
 ### Backoffice (Authorization: Bearer &lt;token&gt;)
 
+- **İşletme rolü:** Token’daki `businessId` kullanılır.
+- **Super-admin:** Her istekte `X-Business-Id` header veya `?businessId=` zorunlu (işletme kapsamı gereken endpoint’lerde).
+
 - `GET/PUT /business/settings`, `GET/PUT /business/booking-settings`
 - `GET/POST/PATCH /employees`
 - `GET /appointments?date=`, `GET /appointments/requests?date=`, `PATCH /appointments/:id/status`, `PATCH /appointments/:id/approve`, `PATCH /appointments/:id/reject`
@@ -63,6 +74,10 @@ npm run dev
 - `GET/POST/PATCH /contacts`
 - `GET /billing/subscription`, `POST /billing/start-trial`, `POST /billing/checkout`
 - `GET /integrations/whatsapp`, `POST /integrations/whatsapp/connect`, `POST /integrations/whatsapp/disconnect`
+
+### Admin (sadece super_admin)
+
+- `GET /admin/businesses` – Tüm işletmeleri listele (X-Business-Id seçmek için)
 
 ### Webhooks
 

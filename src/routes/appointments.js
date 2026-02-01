@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const appointmentController = require('../controllers/appointmentController');
-const { authMiddleware, attachBusiness } = require('../middlewares/auth');
+const { authMiddleware, requireBusinessId, attachBusiness } = require('../middlewares/auth');
 
 router.use(authMiddleware);
+router.use(requireBusinessId);
 router.use(attachBusiness);
 
 router.get('/', appointmentController.list);
