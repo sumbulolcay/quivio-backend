@@ -195,6 +195,13 @@ async function createQueueEntry(req, res, next) {
       return res.status(400).json({
         code: 'one_queue_per_day',
         message: 'Bugün için zaten bir sıra numaranız var.',
+        queue_number: existingToday.position,
+        existing: {
+          id: existingToday.id,
+          position: existingToday.position,
+          status: existingToday.status,
+          queue_date: existingToday.queue_date,
+        },
       });
     }
     const maxPos = await QueueEntry.max('position', {

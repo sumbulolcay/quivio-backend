@@ -18,7 +18,20 @@ function getDayOfWeek(dateStr) {
   return d.getDay();
 }
 
+function getTodayDateStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 async function getSlotsForEmployee(businessId, employeeId, dateStr) {
+  const todayStr = getTodayDateStr();
+  if (dateStr < todayStr) return [];
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
   const employee = await Employee.findOne({
     where: { id: employeeId, business_id: businessId, is_active: true },
   });
@@ -61,7 +74,11 @@ async function getSlotsForEmployee(businessId, employeeId, dateStr) {
     taken.add(slot);
   }
 
-  return slots.filter((s) => !taken.has(s));
+  let result = slots.filter((s) => !taken.has(s));
+  if (dateStr === todayStr) {
+    result = result.filter((s) => parseTime(s) > nowMinutes);
+  }
+  return result;
 }
 
 module.exports = {

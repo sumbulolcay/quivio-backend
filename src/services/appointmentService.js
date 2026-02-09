@@ -29,6 +29,13 @@ async function createPublicAppointment(businessId, data) {
     err.status = 400;
     throw err;
   }
+  const startsAtDate = new Date(startsAt);
+  if (startsAtDate <= new Date()) {
+    const err = new Error('Geçmiş bir vakit için randevu alınamaz');
+    err.code = 'past_slot';
+    err.status = 400;
+    throw err;
+  }
   const dateStr = getDateStrFromStartsAt(startsAt);
   const requestedSlot = getSlotStrFromStartsAt(startsAt);
   const availableSlots = await availabilityService.getSlotsForEmployee(businessId, employeeId, dateStr);

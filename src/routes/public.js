@@ -12,6 +12,6 @@ router.post('/otp/start', otpLimiter, recaptchaMiddleware, publicController.otpS
 router.post('/otp/verify', publicController.otpVerify);
 
 router.post('/appointments', recaptchaMiddleware, publicController.createAppointment);
-router.post('/queue', publicController.createQueueEntry);
+router.post('/queue', recaptchaMiddleware, publicController.createQueueEntry);
 
 module.exports = router;
