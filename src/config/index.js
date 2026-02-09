@@ -67,4 +67,12 @@ module.exports = {
     length: 6,
     maxAttempts: 5,
   },
+
+  cloudinary: {
+    enabled: process.env.CLOUDINARY_ENABLED !== 'false',
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
+    folder: process.env.CLOUDINARY_FOLDER || 'business-logos',
+  },
 };

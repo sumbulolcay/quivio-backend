@@ -78,6 +78,20 @@ async function ensureBusinessPhoneColumn() {
   await sequelize.query('ALTER TABLE businesses ALTER COLUMN phone_e164 SET NOT NULL');
 }
 
+async function ensureBusinessSettingsColumns() {
+  const [results] = await sequelize.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'business_settings' AND table_schema = 'public'
+  `);
+  const columns = (results || []).map((r) => r.column_name);
+  if (!columns.includes('employee_selection_label')) {
+    await sequelize.query('ALTER TABLE business_settings ADD COLUMN employee_selection_label VARCHAR(255)');
+  }
+  if (!columns.includes('logo_url')) {
+    await sequelize.query('ALTER TABLE business_settings ADD COLUMN logo_url VARCHAR(512)');
+  }
+}
+
 async function start() {
   try {
     await sequelize.authenticate();
@@ -85,6 +99,7 @@ async function start() {
     await sequelize.sync({ alter });
     await ensureQueueEntryColumns();
     await ensureBusinessPhoneColumn();
+    await ensureBusinessSettingsColumns();
     await seedPlansIfNeeded();
     await seedSuperAdminIfNeeded();
     await ensureUsersFromBusinesses();

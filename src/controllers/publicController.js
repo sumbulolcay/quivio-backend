@@ -1,4 +1,4 @@
-const { Business, Employee } = require('../models');
+const { Business, Employee, BusinessSettings } = require('../models');
 const subscriptionService = require('../services/subscriptionService');
 const otpService = require('../services/otpService');
 const availabilityService = require('../services/availabilityService');
@@ -10,15 +10,21 @@ const crypto = require('crypto');
 
 async function getBusinessBySlug(req, res, next) {
   try {
-    const business = await Business.findOne({ where: { slug: req.params.slug } });
+    const business = await Business.findOne({
+      where: { slug: req.params.slug },
+      include: [BusinessSettings],
+    });
     if (!business) {
       return res.status(404).json({ code: 'not_found', message: 'İşletme bulunamadı' });
     }
     await subscriptionService.requireCoreSubscription(business.id);
+    const settings = business.BusinessSetting || {};
     res.json({
       id: business.id,
       slug: business.slug,
       name: business.name,
+      employee_selection_label: settings.employee_selection_label || null,
+      logo_url: settings.logo_url || null,
     });
   } catch (err) {
     next(err);

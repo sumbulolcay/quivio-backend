@@ -29,6 +29,16 @@ const BusinessSettings = sequelize.define('BusinessSettings', {
     allowNull: true,
     defaultValue: 1,
   },
+  employee_selection_label: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: 'Çalışan seçim ekranı için dinamik metin (örn. \"Masa seçin\", \"Hekim seçin\")',
+  },
+  logo_url: {
+    type: DataTypes.STRING(512),
+    allowNull: true,
+    comment: 'İşletme logosu (Cloudinary secure_url)',
+  },
 }, {
   tableName: 'business_settings',
 });
