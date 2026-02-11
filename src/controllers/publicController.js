@@ -160,6 +160,120 @@ async function createAppointment(req, res, next) {
   }
 }
 
+async function updateMyAppointment(req, res, next) {
+  try {
+    const { slug, employee_id, starts_at, name, surname } = req.body;
+    const appointmentId = req.params.id;
+    if (!slug || !employee_id || !starts_at) {
+      return res.status(400).json({
+        code: 'validation_error',
+        message: 'slug, employee_id ve starts_at zorunlu',
+      });
+    }
+    const session = getCustomerSession(req);
+    if (!session || !session.customerId) {
+      return res.status(401).json({ code: 'session_required', message: 'Önce OTP ile giriş yapın' });
+    }
+    const business = await Business.findOne({ where: { slug } });
+    if (!business || business.id !== session.businessId) {
+      return res.status(403).json({ code: 'forbidden', message: 'Oturum bu işletme ile eşleşmiyor' });
+    }
+    const models = require('../models');
+    const customer = await models.Customer.findByPk(session.customerId);
+    if (customer && (name || surname)) {
+      await customer.update({
+        name: name !== undefined ? name : customer.name,
+        surname: surname !== undefined ? surname : customer.surname,
+      });
+    }
+    const appointment = await appointmentService.reschedulePublicAppointment(
+      business.id,
+      appointmentId,
+      session.customerId,
+      {
+        employee_id,
+        starts_at,
+        name,
+        surname,
+      },
+    );
+    await appointmentService.upsertContactFromCustomer(business.id, { ...customer?.toJSON(), name, surname });
+    res.json({
+      id: appointment.id,
+      starts_at: appointment.starts_at,
+      approval_status: appointment.approval_status,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function cancelMyAppointment(req, res, next) {
+  try {
+    const { slug } = req.body;
+    const appointmentId = req.params.id;
+    if (!slug) {
+      return res.status(400).json({ code: 'validation_error', message: 'slug zorunlu' });
+    }
+    const session = getCustomerSession(req);
+    if (!session || !session.customerId) {
+      return res.status(401).json({ code: 'session_required', message: 'Önce OTP ile giriş yapın' });
+    }
+    const business = await Business.findOne({ where: { slug } });
+    if (!business || business.id !== session.businessId) {
+      return res.status(403).json({ code: 'forbidden', message: 'Oturum bu işletme ile eşleşmiyor' });
+    }
+    const appointment = await appointmentService.cancelPublicAppointment(
+      business.id,
+      appointmentId,
+      session.customerId,
+    );
+    res.json({
+      id: appointment.id,
+      starts_at: appointment.starts_at,
+      status: appointment.status,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getMyUpcomingAppointments(req, res, next) {
+  try {
+    const { slug } = req.query;
+    if (!slug) {
+      return res.status(400).json({ code: 'validation_error', message: 'slug gerekli' });
+    }
+    const session = getCustomerSession(req);
+    if (!session || !session.customerId) {
+      return res.status(401).json({ code: 'session_required', message: 'Önce OTP ile giriş yapın' });
+    }
+    const business = await Business.findOne({ where: { slug } });
+    if (!business || business.id !== session.businessId) {
+      return res.status(403).json({ code: 'forbidden', message: 'Oturum bu işletme ile eşleşmiyor' });
+    }
+    const { Appointment, Employee } = require('../models');
+    const Sequelize = require('sequelize');
+    const Op = Sequelize.Op;
+    const now = new Date();
+    const list = await Appointment.findAll({
+      where: {
+        business_id: business.id,
+        customer_id: session.customerId,
+        status: { [Op.ne]: 'cancelled' },
+        starts_at: { [Op.gt]: now },
+      },
+      include: [
+        { model: Employee, attributes: ['id', 'name', 'surname', 'role'] },
+      ],
+      order: [['starts_at', 'ASC']],
+    });
+    res.json({ appointments: list });
+  } catch (err) {
+    next(err);
+  }
+}
+
 function getTodayDateStr() {
   const d = new Date();
   const y = d.getFullYear();
@@ -237,5 +351,8 @@ module.exports = {
   otpStart,
   otpVerify,
   createAppointment,
+  updateMyAppointment,
+  getMyUpcomingAppointments,
+  cancelMyAppointment,
   createQueueEntry,
 };

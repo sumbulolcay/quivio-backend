@@ -28,7 +28,31 @@ async function notifyCustomerAppointmentApproved(phoneE164, appointment, channel
   }
 }
 
+async function notifyCustomerAppointmentCancelled(phoneE164, appointment, channels = {}) {
+  const { sms: useSms } = channels;
+  if (useSms && phoneE164) {
+    try {
+      await smsProvider.sendOtp(phoneE164, `Randevunuz iptal edildi: ${appointment.starts_at}.`);
+    } catch (err) {
+      console.error('[notification] customer cancel sms failed', err.message);
+    }
+  }
+}
+
+async function notifyCustomerAppointmentRescheduled(phoneE164, appointment, channels = {}) {
+  const { sms: useSms } = channels;
+  if (useSms && phoneE164) {
+    try {
+      await smsProvider.sendOtp(phoneE164, `Randevunuz güncellendi: ${appointment.starts_at}.`);
+    } catch (err) {
+      console.error('[notification] customer reschedule sms failed', err.message);
+    }
+  }
+}
+
 module.exports = {
   notifyBusinessNewAppointment,
   notifyCustomerAppointmentApproved,
+  notifyCustomerAppointmentCancelled,
+  notifyCustomerAppointmentRescheduled,
 };

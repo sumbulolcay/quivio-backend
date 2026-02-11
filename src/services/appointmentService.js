@@ -94,6 +94,129 @@ async function createPublicAppointment(businessId, data) {
   return appointment;
 }
 
+async function reschedulePublicAppointment(businessId, appointmentId, customerId, data) {
+  await subscriptionService.requireCoreSubscription(businessId);
+  const { employee_id: employeeId, starts_at: startsAt, name, surname } = data;
+  if (!employeeId || !customerId || !startsAt) {
+    const err = new Error('employee_id, customer_id ve starts_at zorunludur');
+    err.code = 'validation_error';
+    err.status = 400;
+    throw err;
+  }
+  const now = new Date();
+  const appointment = await Appointment.findOne({
+    where: {
+      id: appointmentId,
+      business_id: businessId,
+      customer_id: customerId,
+      status: { [Op.ne]: 'cancelled' },
+      starts_at: { [Op.gt]: now },
+    },
+  });
+  if (!appointment) {
+    const err = new Error('Randevu bulunamadı veya geçmiş/iptal edilmiş');
+    err.code = 'not_found_or_invalid_state';
+    err.status = 404;
+    throw err;
+  }
+
+  const startsAtDate = new Date(startsAt);
+  if (startsAtDate <= new Date()) {
+    const err = new Error('Geçmiş bir vakit için randevu güncellenemez');
+    err.code = 'past_slot';
+    err.status = 400;
+    throw err;
+  }
+
+  const dateStr = getDateStrFromStartsAt(startsAt);
+  const requestedSlot = getSlotStrFromStartsAt(startsAt);
+  const availableSlots = await availabilityService.getSlotsForEmployee(businessId, employeeId, dateStr);
+  if (!availableSlots.includes(requestedSlot)) {
+    const err = new Error('Seçilen saat müsait değil');
+    err.code = 'slot_not_available';
+    err.status = 400;
+    throw err;
+  }
+
+  const dayStart = new Date(dateStr + 'T00:00:00');
+  const dayEnd = new Date(dateStr + 'T23:59:59');
+  const existingSameDay = await Appointment.findOne({
+    where: {
+      business_id: businessId,
+      customer_id: customerId,
+      status: { [Op.ne]: 'cancelled' },
+      id: { [Op.ne]: appointmentId },
+      starts_at: { [Op.gte]: dayStart, [Op.lte]: dayEnd },
+    },
+  });
+  if (existingSameDay) {
+    const err = new Error('Aynı gün için zaten bir randevunuz var');
+    err.code = 'one_appointment_per_day';
+    err.status = 400;
+    throw err;
+  }
+
+  const oldStartsAt = appointment.starts_at;
+  await appointment.update({
+    employee_id: employeeId,
+    starts_at: startsAtDate,
+  });
+
+  await AppointmentRequestLog.create({
+    appointment_id: appointment.id,
+    action: 'rescheduled_by_customer',
+    actor_type: 'customer',
+    payload_json: {
+      old_starts_at: oldStartsAt,
+      new_starts_at: startsAtDate,
+      name,
+      surname,
+    },
+  });
+
+  const customer = await require('../models').Customer.findByPk(customerId);
+  if (customer) {
+    await notificationService.notifyCustomerAppointmentRescheduled(customer.phone_e164, appointment, { sms: true });
+  }
+
+  return appointment;
+}
+
+async function cancelPublicAppointment(businessId, appointmentId, customerId) {
+  await subscriptionService.requireCoreSubscription(businessId);
+  const now = new Date();
+  const appointment = await Appointment.findOne({
+    where: {
+      id: appointmentId,
+      business_id: businessId,
+      customer_id: customerId,
+      status: { [Op.ne]: 'cancelled' },
+      starts_at: { [Op.gt]: now },
+    },
+  });
+  if (!appointment) {
+    const err = new Error('Randevu bulunamadı veya geçmiş/iptal edilmiş');
+    err.code = 'not_found_or_invalid_state';
+    err.status = 404;
+    throw err;
+  }
+
+  await appointment.update({ status: 'cancelled' });
+  await AppointmentRequestLog.create({
+    appointment_id: appointment.id,
+    action: 'cancelled_by_customer',
+    actor_type: 'customer',
+    payload_json: {},
+  });
+
+  const customer = await require('../models').Customer.findByPk(customerId);
+  if (customer) {
+    await notificationService.notifyCustomerAppointmentCancelled(customer.phone_e164, appointment, { sms: true });
+  }
+
+  return appointment;
+}
+
 async function approveAppointment(businessId, appointmentId) {
   const appointment = await Appointment.findOne({
     where: { id: appointmentId, business_id: businessId },
@@ -181,4 +304,6 @@ module.exports = {
   approveAppointment,
   rejectAppointment,
   upsertContactFromCustomer,
+  reschedulePublicAppointment,
+  cancelPublicAppointment,
 };
