@@ -9,10 +9,14 @@ async function handleIncoming(req, res, next) {
     if (!phoneNumberId) {
       return res.status(400).json({ code: 'invalid_payload', message: 'phone_number_id bulunamadı' });
     }
-    const businessId = await whatsappStateService.resolveBusinessFromPhoneNumberId(phoneNumberId);
-    if (!businessId) {
+    const integration = await whatsappStateService.resolveIntegrationByPhoneNumberId(phoneNumberId);
+    if (!integration) {
       return res.status(404).json({ code: 'business_not_found', message: 'Entegrasyon bulunamadı' });
     }
+    if (integration.status !== 'active') {
+      return res.status(200).send('OK');
+    }
+    const businessId = integration.business_id;
     const canUse = await subscriptionService.canUseWhatsApp(businessId);
     if (!canUse) {
       return res.status(200).send('OK');

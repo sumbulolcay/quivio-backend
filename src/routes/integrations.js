@@ -10,5 +10,6 @@ router.use(attachBusiness);
 router.get('/whatsapp', integrationController.getWhatsapp);
 router.post('/whatsapp/connect', integrationController.connectWhatsapp);
 router.post('/whatsapp/disconnect', integrationController.disconnectWhatsapp);
+router.post('/whatsapp/test', integrationController.testWhatsapp);
 
 module.exports = router;

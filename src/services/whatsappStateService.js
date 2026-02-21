@@ -14,6 +14,16 @@ async function resolveBusinessFromPhoneNumberId(phoneNumberId) {
   return integration ? integration.business_id : null;
 }
 
+/**
+ * Webhook: Entegrasyonu bulur (status fark etmez). Bağlantı kesikse akış işlenmez ama 200 dönülür.
+ */
+async function resolveIntegrationByPhoneNumberId(phoneNumberId) {
+  const integration = await WhatsappIntegration.findOne({
+    where: { phone_number_id: phoneNumberId },
+  });
+  return integration;
+}
+
 async function getOrCreateSession(businessId, waId) {
   let session = await WhatsappSession.findOne({
     where: { business_id: businessId, wa_id: waId },
@@ -111,6 +121,7 @@ async function createAppointmentFromSession(session, waUserId) {
 
 module.exports = {
   resolveBusinessFromPhoneNumberId,
+  resolveIntegrationByPhoneNumberId,
   getOrCreateSession,
   getContext,
   updateContext,

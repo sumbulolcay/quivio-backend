@@ -1,16 +1,33 @@
-const { WhatsappIntegration } = require('../models');
+const { WhatsappIntegration, Business } = require('../models');
 const subscriptionService = require('../services/subscriptionService');
 
 async function getWhatsapp(req, res, next) {
   try {
-    await subscriptionService.requireCoreSubscription(req.businessId);
     const integration = await WhatsappIntegration.findOne({
       where: { business_id: req.businessId },
     });
+    const sub = await subscriptionService.getActiveSubscription(req.businessId);
+    const planIncludesWhatsApp = sub ? await subscriptionService.planIncludesWhatsApp(sub.plan_code) : false;
+    const subscriptionActive = subscriptionService.isSubscriptionActive(sub);
+    const trialEndsAt = sub && sub.trial_ends_at ? sub.trial_ends_at : null;
+    const connected = !!integration && integration.status === 'active';
+    let display_status = 'not_connected';
+    if (connected) {
+      if (!planIncludesWhatsApp) display_status = 'not_connected';
+      else if (sub && sub.status === 'trial_active' && trialEndsAt) display_status = 'trial';
+      else if (subscriptionActive) display_status = 'active';
+      else display_status = 'expired';
+    } else if (integration && integration.status === 'disconnected') {
+      display_status = 'not_connected';
+    }
     res.json({
-      connected: !!integration && integration.status === 'active',
+      connected,
       phone_number_id: integration ? integration.phone_number_id : null,
       status: integration ? integration.status : null,
+      display_status,
+      plan_includes_whatsapp: planIncludesWhatsApp,
+      subscription_status: sub ? sub.status : null,
+      trial_ends_at: trialEndsAt,
     });
   } catch (err) {
     next(err);
@@ -55,4 +72,34 @@ async function disconnectWhatsapp(req, res, next) {
   }
 }
 
-module.exports = { getWhatsapp, connectWhatsapp, disconnectWhatsapp };
+async function testWhatsapp(req, res, next) {
+  try {
+    await subscriptionService.requireCoreSubscription(req.businessId);
+    const canUse = await subscriptionService.canUseWhatsApp(req.businessId);
+    if (!canUse) {
+      return res.status(403).json({ code: 'plan_required', message: 'WhatsApp planı gerekli' });
+    }
+    const integration = await WhatsappIntegration.findOne({
+      where: { business_id: req.businessId, status: 'active' },
+    });
+    if (!integration) {
+      return res.status(400).json({ code: 'not_connected', message: 'WhatsApp bağlı değil' });
+    }
+    const token = integration.token_encrypted;
+    if (!token) {
+      return res.status(400).json({ code: 'no_token', message: 'Bağlantı token\'ı yok; yeniden bağlayın' });
+    }
+    const business = await Business.findByPk(req.businessId, { attributes: ['phone_e164'] });
+    if (!business || !business.phone_e164) {
+      return res.status(400).json({ code: 'no_phone', message: 'İşletme telefon numarası tanımlı değil' });
+    }
+    const { sendTextMessage } = require('../providers/whatsapp/sendMessage');
+    const to = business.phone_e164.replace(/^\+/, '');
+    await sendTextMessage(integration.phone_number_id, token, to, 'Test mesajı. Qivio WhatsApp bağlantınız aktiftir.');
+    res.json({ success: true, message: 'Test mesajı gönderildi' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getWhatsapp, connectWhatsapp, disconnectWhatsapp, testWhatsapp };
