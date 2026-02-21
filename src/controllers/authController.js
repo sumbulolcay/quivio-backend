@@ -93,4 +93,42 @@ async function register(req, res, next) {
   }
 }
 
-module.exports = { login, register };
+async function changePassword(req, res, next) {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({
+        code: 'validation_error',
+        message: 'Mevcut şifre ve yeni şifre zorunludur',
+      });
+    }
+    if (String(new_password).length < 6) {
+      return res.status(400).json({
+        code: 'validation_error',
+        message: 'Yeni şifre en az 6 karakter olmalıdır',
+      });
+    }
+    const user = await User.findByPk(req.userId);
+    if (!user) {
+      return res.status(401).json({ code: 'unauthorized', message: 'Kullanıcı bulunamadı' });
+    }
+    const valid = await comparePassword(current_password, user.password_hash);
+    if (!valid) {
+      return res.status(400).json({
+        code: 'invalid_current_password',
+        message: 'Mevcut şifre hatalı',
+      });
+    }
+    const password_hash = await hashPassword(new_password);
+    await user.update({ password_hash });
+    if (req.role === 'business' && req.businessId) {
+      const business = await Business.findByPk(req.businessId);
+      if (business) await business.update({ password_hash });
+    }
+    res.json({ message: 'Şifre güncellendi' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { login, register, changePassword };
