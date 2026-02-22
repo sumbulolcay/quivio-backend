@@ -49,6 +49,7 @@ function recaptchaMiddleware(req, res, next) {
   }
   verifyRecaptcha(token).then((result) => {
     console.log("recaptcha result", result);
+    console.log("recaptcha token", token);
     if (!result.success) {
       return res.status(429).json({ code: 'recaptcha_failed', message: 'reCAPTCHA doğrulaması başarısız' });
     }
