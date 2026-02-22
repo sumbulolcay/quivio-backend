@@ -48,8 +48,6 @@ function recaptchaMiddleware(req, res, next) {
     return res.status(400).json({ code: 'recaptcha_failed', message: 'reCAPTCHA token gerekli' });
   }
   verifyRecaptcha(token).then((result) => {
-    console.log("recaptcha result", result);
-    console.log("recaptcha token", token);
     if (!result.success) {
       return res.status(429).json({ code: 'recaptcha_failed', message: 'reCAPTCHA doğrulaması başarısız' });
     }
