@@ -49,8 +49,15 @@ async function getSlotsForEmployee(businessId, employeeId, dateStr) {
     const startMin = parseTime(row.start_time);
     const endMin = parseTime(row.end_time);
     if (startMin == null || endMin == null) continue;
+    const breaks = Array.isArray(row.breaks_json) ? row.breaks_json : [];
+    const breakRanges = breaks.map((b) => ({
+      start: parseTime(b.start),
+      end: parseTime(b.end),
+    })).filter((b) => b.start != null && b.end != null && b.start < b.end);
     for (let m = startMin; m + slotDuration <= endMin; m += slotDuration) {
-      slots.push(formatSlot(m));
+      const slotEnd = m + slotDuration;
+      const inBreak = breakRanges.some((br) => m < br.end && slotEnd > br.start);
+      if (!inBreak) slots.push(formatSlot(m));
     }
   }
 
@@ -81,8 +88,38 @@ async function getSlotsForEmployee(businessId, employeeId, dateStr) {
   return result;
 }
 
+const SLOT_DURATION = 30;
+
+/**
+ * Verilen tarih ve slot (HH:mm) çalışanın o günkü mola saatine denk geliyor mu?
+ */
+async function isSlotInBreak(businessId, employeeId, dateStr, slotStr) {
+  const employee = await Employee.findOne({
+    where: { id: employeeId, business_id: businessId, is_active: true },
+  });
+  if (!employee) return true;
+  const day = getDayOfWeek(dateStr);
+  const wh = await EmployeeWorkingHours.findAll({
+    where: { employee_id: employeeId, day_of_week: day },
+  });
+  const slotStartMin = parseTime(slotStr);
+  if (slotStartMin == null) return true;
+  const slotEndMin = slotStartMin + SLOT_DURATION;
+  for (const row of wh) {
+    const breaks = Array.isArray(row.breaks_json) ? row.breaks_json : [];
+    for (const b of breaks) {
+      const brStart = parseTime(b.start);
+      const brEnd = parseTime(b.end);
+      if (brStart == null || brEnd == null || brStart >= brEnd) continue;
+      if (slotStartMin < brEnd && slotEndMin > brStart) return true;
+    }
+  }
+  return false;
+}
+
 module.exports = {
   getSlotsForEmployee,
   getDayOfWeek,
   formatSlot,
+  isSlotInBreak,
 };

@@ -45,6 +45,13 @@ async function createPublicAppointment(businessId, data) {
     err.status = 400;
     throw err;
   }
+  const inBreak = await availabilityService.isSlotInBreak(businessId, employeeId, dateStr, requestedSlot);
+  if (inBreak) {
+    const err = new Error('Seçilen saat mola saatine denk geliyor');
+    err.code = 'slot_not_available';
+    err.status = 400;
+    throw err;
+  }
   const dayStart = new Date(dateStr + 'T00:00:00');
   const dayEnd = new Date(dateStr + 'T23:59:59');
   const existingSameDay = await Appointment.findOne({
