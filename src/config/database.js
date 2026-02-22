@@ -47,6 +47,13 @@ const sequelize = new Sequelize(databaseUrl, {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  hooks: config.timezone
+    ? {
+        afterConnect: (connection) => {
+          return connection.query(`SET time zone '${config.timezone.replace(/'/g, "''")}'`);
+        },
+      }
+    : undefined,
 });
 
 module.exports = { sequelize };

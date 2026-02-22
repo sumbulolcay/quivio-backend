@@ -1,8 +1,16 @@
 require('dotenv').config();
 
+/** Uygulama ve PostgreSQL için timezone (örn. Europe/Istanbul). Boşsa varsayılan kullanılır. */
+const timezone = process.env.TZ || process.env.APP_TIMEZONE || 'Europe/Istanbul';
+
+if (timezone) {
+  process.env.TZ = timezone;
+}
+
 module.exports = {
   env: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT, 10) || 4000,
+  timezone,
 
   database: {
     url: process.env.DATABASE_URL,
