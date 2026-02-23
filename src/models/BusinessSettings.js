@@ -39,6 +39,12 @@ const BusinessSettings = sequelize.define('BusinessSettings', {
     allowNull: true,
     comment: 'İşletme logosu (Cloudinary secure_url)',
   },
+  whatsapp_lang: {
+    type: DataTypes.STRING(8),
+    allowNull: false,
+    defaultValue: 'tr',
+    comment: 'WhatsApp mesajları için dil (tr, en). Tek dil seçilir.',
+  },
 }, {
   tableName: 'business_settings',
 });

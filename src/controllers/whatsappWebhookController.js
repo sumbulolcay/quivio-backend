@@ -1,7 +1,10 @@
-const { WhatsappMessageLog, WaUser } = require('../models');
+const { WhatsappMessageLog, WaUser, BookingSettings, BusinessSettings } = require('../models');
 const waPayload = require('../utils/waPayload');
 const whatsappStateService = require('../services/whatsappStateService');
+const whatsappReplyService = require('../services/whatsappReplyService');
 const subscriptionService = require('../services/subscriptionService');
+const { sendTextMessage } = require('../providers/whatsapp/sendMessage');
+const { getWaT } = require('../i18n/wa');
 
 async function handleIncoming(req, res, next) {
   try {
@@ -61,32 +64,41 @@ async function handleIncoming(req, res, next) {
     const session = await whatsappStateService.getOrCreateSession(businessId, waId);
     const text = waPayload.getText(message);
     const interactive = waPayload.getInteractiveResponse(message);
+
+    // Randevu akışı: WELCOME → DATE_SELECT → EMPLOYEE_SELECT → TIME_SELECT → CONFIRM → DONE
     if (session.state === 'WELCOME') {
       if (interactive && interactive.type === 'button') {
         if (interactive.id === 'appointment') {
-          await session.update({ state: 'EMPLOYEE_SELECT', context_json: { ...whatsappStateService.getContext(session), intent: 'appointment' } });
+          await session.update({
+            state: 'DATE_SELECT',
+            context_json: { ...whatsappStateService.getContext(session), intent: 'appointment' },
+          });
         } else if (interactive.id === 'queue') {
-          await session.update({ state: 'EMPLOYEE_SELECT', context_json: { ...whatsappStateService.getContext(session), intent: 'queue' } });
+          const bookingSettings = await BookingSettings.findOne({ where: { business_id: businessId } });
+          const queueRequiresEmployee = bookingSettings && bookingSettings.queue_requires_employee;
+          await session.update({
+            state: queueRequiresEmployee ? 'EMPLOYEE_SELECT' : 'QUEUE_CONFIRM',
+            context_json: { ...whatsappStateService.getContext(session), intent: 'queue' },
+          });
         } else if (interactive.id === 'cancel') {
           await session.update({ state: 'CANCELLED', context_json: {} });
         }
       }
+    } else if (session.state === 'DATE_SELECT' && interactive && interactive.type === 'list') {
+      const dayOffset = interactive.id != null ? parseInt(interactive.id, 10) : NaN;
+      if (!Number.isNaN(dayOffset) && dayOffset >= 0 && dayOffset <= whatsappStateService.MAX_DATE_DAYS) {
+        const selectedDate = whatsappStateService.dateFromTodayOffset(dayOffset);
+        await whatsappStateService.updateContext(session, { selectedDate });
+        await session.update({ state: 'EMPLOYEE_SELECT' });
+      }
     } else if (session.state === 'EMPLOYEE_SELECT' && interactive && interactive.type === 'list') {
       const employeeId = interactive.id ? parseInt(interactive.id, 10) : null;
+      const ctx = whatsappStateService.getContext(session);
       if (employeeId) {
         await whatsappStateService.updateContext(session, { selectedEmployeeId: employeeId });
-        await session.update({ state: 'DATE_SELECT' });
-      }
-    } else if (session.state === 'DATE_SELECT' && interactive && interactive.type === 'button') {
-      const ctx = whatsappStateService.getContext(session);
-      if (interactive.id === 'today') {
-        await whatsappStateService.updateContext(session, { selectedDate: whatsappStateService.todayISO() });
-        await session.update({ state: 'TIME_SELECT' });
-      } else if (interactive.id === 'tomorrow') {
-        await whatsappStateService.updateContext(session, { selectedDate: whatsappStateService.tomorrowISO(whatsappStateService.todayISO()) });
-        await session.update({ state: 'TIME_SELECT' });
-      } else if (interactive.id === 'cancel') {
-        await session.update({ state: 'CANCELLED', context_json: {} });
+        await session.update({
+          state: ctx.intent === 'queue' ? 'QUEUE_CONFIRM' : 'TIME_SELECT',
+        });
       }
     } else if (session.state === 'TIME_SELECT' && interactive && interactive.type === 'list') {
       const slot = interactive.id || interactive.title;
@@ -96,14 +108,46 @@ async function handleIncoming(req, res, next) {
       }
     } else if (session.state === 'CONFIRM' && interactive && interactive.type === 'button') {
       if (interactive.id === 'confirm') {
-        const appointment = await whatsappStateService.createAppointmentFromSession(session, waUser.id);
-        if (appointment) {
+        const result = await whatsappStateService.createAppointmentFromSession(session, waUser.id);
+        if (result.appointment) {
           await session.update({ state: 'DONE', context_json: {} });
+          await whatsappReplyService.sendAppointmentResult(integration, waId, result.appointment);
+          res.status(200).send('OK');
+          return;
         }
+        const token = integration.token_encrypted;
+        if (token) {
+          const settings = await BusinessSettings.findOne({ where: { business_id: businessId } });
+          const lang = (settings && settings.whatsapp_lang) ? settings.whatsapp_lang : 'tr';
+          const t = getWaT(lang);
+          if (result.reason === 'existing_same_day') {
+            await session.update({ state: 'DATE_SELECT' });
+            await sendTextMessage(integration.phone_number_id, token, waId, t('existing_same_day'));
+          } else {
+            await session.update({ state: 'TIME_SELECT' });
+            await sendTextMessage(integration.phone_number_id, token, waId, t('slot_unavailable'));
+          }
+        } else {
+          await session.update({ state: result.reason === 'existing_same_day' ? 'DATE_SELECT' : 'TIME_SELECT' });
+        }
+      } else if (interactive.id === 'back') {
+        await session.update({ state: 'TIME_SELECT' });
+      } else if (interactive.id === 'cancel') {
+        await session.update({ state: 'CANCELLED', context_json: {} });
+      }
+    } else if (session.state === 'QUEUE_CONFIRM' && interactive && interactive.type === 'button') {
+      if (interactive.id === 'confirm') {
+        const entry = await whatsappStateService.createQueueEntryFromSession(session, waUser.id);
+        await session.update({ state: 'DONE', context_json: {} });
+        await whatsappReplyService.sendQueueResult(integration, waId, entry ? entry.position : null, session.business_id);
+        res.status(200).send('OK');
+        return;
       } else if (interactive.id === 'cancel') {
         await session.update({ state: 'CANCELLED', context_json: {} });
       }
     }
+
+    await whatsappReplyService.sendReplyForState(integration, waId, session);
     res.status(200).send('OK');
   } catch (err) {
     next(err);

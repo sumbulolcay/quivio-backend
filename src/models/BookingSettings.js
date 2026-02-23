@@ -27,6 +27,12 @@ const BookingSettings = sequelize.define('BookingSettings', {
     type: DataTypes.STRING(32),
     allowNull: true,
   },
+  queue_requires_employee: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    comment: 'true ise sıraya girerken çalışan seçimi gösterilir',
+  },
 }, {
   tableName: 'booking_settings',
 });

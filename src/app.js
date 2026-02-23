@@ -92,6 +92,20 @@ async function ensureBusinessSettingsColumns() {
   if (!columns.includes('logo_url')) {
     await sequelize.query('ALTER TABLE business_settings ADD COLUMN logo_url VARCHAR(512)');
   }
+  if (!columns.includes('whatsapp_lang')) {
+    await sequelize.query("ALTER TABLE business_settings ADD COLUMN whatsapp_lang VARCHAR(8) NOT NULL DEFAULT 'tr'");
+  }
+}
+
+async function ensureBookingSettingsColumns() {
+  const [results] = await sequelize.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'booking_settings' AND table_schema = 'public'
+  `);
+  const columns = (results || []).map((r) => r.column_name);
+  if (!columns.includes('queue_requires_employee')) {
+    await sequelize.query('ALTER TABLE booking_settings ADD COLUMN queue_requires_employee BOOLEAN NOT NULL DEFAULT false');
+  }
 }
 
 async function start() {
@@ -102,6 +116,7 @@ async function start() {
     await ensureQueueEntryColumns();
     await ensureBusinessPhoneColumn();
     await ensureBusinessSettingsColumns();
+    await ensureBookingSettingsColumns();
     await seedPlansIfNeeded();
     await seedSuperAdminIfNeeded();
     await ensureUsersFromBusinesses();

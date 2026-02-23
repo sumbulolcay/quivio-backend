@@ -1,6 +1,7 @@
 const { Business, BusinessSettings, BookingSettings } = require('../models');
 const subscriptionService = require('../services/subscriptionService');
 const { uploadBusinessLogo } = require('../providers/upload/cloudinary');
+const { getAvailableLanguages } = require('../i18n/wa');
 
 async function getSettings(req, res, next) {
   try {
@@ -23,6 +24,7 @@ async function getSettings(req, res, next) {
       max_parallel: settings.max_parallel,
       employee_selection_label: settings.employee_selection_label,
       logo_url: settings.logo_url,
+      whatsapp_lang: settings.whatsapp_lang || 'tr',
     });
   } catch (err) {
     next(err);
@@ -38,7 +40,16 @@ async function putSettings(req, res, next) {
       max_parallel,
       employee_selection_label,
       logo_url,
+      whatsapp_lang,
     } = req.body;
+    const languages = getAvailableLanguages();
+    const validLang = languages.some((l) => l.code === whatsapp_lang);
+    if (whatsapp_lang !== undefined && !validLang) {
+      return res.status(400).json({
+        code: 'validation_error',
+        message: 'Geçersiz whatsapp_lang. Kullanılabilir diller: ' + languages.map((l) => l.code).join(', '),
+      });
+    }
     const [settings] = await BusinessSettings.findOrCreate({
       where: { business_id: req.businessId },
       defaults: { business_id: req.businessId },
@@ -48,6 +59,7 @@ async function putSettings(req, res, next) {
     if (max_parallel !== undefined) settings.max_parallel = max_parallel;
     if (employee_selection_label !== undefined) settings.employee_selection_label = employee_selection_label;
     if (logo_url !== undefined) settings.logo_url = logo_url;
+    if (whatsapp_lang !== undefined) settings.whatsapp_lang = whatsapp_lang;
     await settings.save();
     res.json({
       working_hours: settings.working_hours,
@@ -55,6 +67,7 @@ async function putSettings(req, res, next) {
       max_parallel: settings.max_parallel,
       employee_selection_label: settings.employee_selection_label,
       logo_url: settings.logo_url,
+      whatsapp_lang: settings.whatsapp_lang || 'tr',
     });
   } catch (err) {
     next(err);
@@ -94,6 +107,7 @@ async function getBookingSettings(req, res, next) {
       auto_approve: settings ? settings.auto_approve : false,
       notify_email: settings ? settings.notify_email : null,
       notify_sms: settings ? settings.notify_sms : null,
+      queue_requires_employee: settings ? settings.queue_requires_employee : false,
     });
   } catch (err) {
     next(err);
@@ -103,7 +117,7 @@ async function getBookingSettings(req, res, next) {
 async function putBookingSettings(req, res, next) {
   try {
     await subscriptionService.requireCoreSubscription(req.businessId);
-    const { auto_approve, notify_email, notify_sms } = req.body;
+    const { auto_approve, notify_email, notify_sms, queue_requires_employee } = req.body;
     const [settings] = await BookingSettings.findOrCreate({
       where: { business_id: req.businessId },
       defaults: { business_id: req.businessId },
@@ -111,12 +125,24 @@ async function putBookingSettings(req, res, next) {
     if (typeof auto_approve === 'boolean') settings.auto_approve = auto_approve;
     if (notify_email !== undefined) settings.notify_email = notify_email;
     if (notify_sms !== undefined) settings.notify_sms = notify_sms;
+    if (typeof queue_requires_employee === 'boolean') settings.queue_requires_employee = queue_requires_employee;
     await settings.save();
     res.json({
       auto_approve: settings.auto_approve,
       notify_email: settings.notify_email,
       notify_sms: settings.notify_sms,
+      queue_requires_employee: settings.queue_requires_employee,
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** İşletme paneli: WhatsApp için kullanılabilir diller (ayar ekranında tek dil seçilir). */
+async function getAvailableLanguagesForWhatsApp(req, res, next) {
+  try {
+    const languages = getAvailableLanguages();
+    res.json({ languages });
   } catch (err) {
     next(err);
   }
@@ -128,4 +154,5 @@ module.exports = {
   getBookingSettings,
   putBookingSettings,
   uploadLogo,
+  getAvailableLanguagesForWhatsApp,
 };

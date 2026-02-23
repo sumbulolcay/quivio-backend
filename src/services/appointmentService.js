@@ -283,6 +283,13 @@ async function rejectAppointment(businessId, appointmentId) {
     actor_type: 'business',
     payload_json: {},
   });
+  const canWa = await subscriptionService.canUseWhatsApp(businessId);
+  let phoneE164 = null;
+  if (appointment.customer_id) {
+    const customer = await require('../models').Customer.findByPk(appointment.customer_id);
+    phoneE164 = customer && customer.phone_e164;
+  }
+  await notificationService.notifyCustomerAppointmentRejected(phoneE164, appointment, { sms: !!phoneE164, whatsapp: canWa });
   return appointment;
 }
 
