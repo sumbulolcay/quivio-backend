@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { sendError } = require('../utils/response');
 
 const OTP_WINDOW_MS = 5 * 60 * 1000;
 const OTP_MAX_PER_KEY = 3;
@@ -17,7 +18,8 @@ const otpLimiter = rateLimit({
   keyGenerator: otpLimiterKey,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { code: 'rate_limit_exceeded', message: 'Çok fazla deneme. Lütfen daha sonra tekrar deneyin.' },
+  handler: (req, res /*, next */) =>
+    sendError(req, res, 429, 'rate_limit_exceeded', 'Çok fazla deneme. Lütfen daha sonra tekrar deneyin.'),
 });
 
 const whatsappLimiter = rateLimit({
@@ -34,7 +36,8 @@ const whatsappLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  message: { code: 'rate_limit_exceeded', message: 'Çok fazla istek.' },
+  handler: (req, res /*, next */) =>
+    sendError(req, res, 429, 'rate_limit_exceeded', 'Çok fazla istek.'),
 });
 
 module.exports = {

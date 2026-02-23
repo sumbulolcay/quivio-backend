@@ -83,4 +83,12 @@ module.exports = {
     apiSecret: process.env.CLOUDINARY_API_SECRET,
     folder: process.env.CLOUDINARY_FOLDER || 'business-logos',
   },
+
+  i18n: {
+    defaultLang: process.env.DEFAULT_LANG || 'en',
+    supportedLangs: (process.env.SUPPORTED_LANGS || 'en,tr')
+      .split(',')
+      .map((l) => l.trim())
+      .filter(Boolean),
+  },
 };

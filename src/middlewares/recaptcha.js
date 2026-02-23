@@ -45,15 +45,18 @@ function recaptchaMiddleware(req, res, next) {
   }
   const token = req.body.recaptchaToken || req.body.recaptcha_token || req.headers['x-recaptcha-token'];
   if (!token) {
-    return res.status(400).json({ code: 'recaptcha_failed', message: 'reCAPTCHA token gerekli' });
+    const { sendError } = require('../utils/response');
+    return sendError(req, res, 400, 'recaptcha_failed', 'reCAPTCHA token gerekli');
   }
   verifyRecaptcha(token).then((result) => {
     if (!result.success) {
-      return res.status(429).json({ code: 'recaptcha_failed', message: 'reCAPTCHA doğrulaması başarısız' });
+      const { sendError } = require('../utils/response');
+      return sendError(req, res, 429, 'recaptcha_failed', 'reCAPTCHA doğrulaması başarısız');
     }
     const minScore = config.recaptcha.minScore;
     if (typeof result.score === 'number' && result.score < minScore) {
-      return res.status(429).json({ code: 'recaptcha_failed', message: 'reCAPTCHA skoru yetersiz' });
+      const { sendError } = require('../utils/response');
+      return sendError(req, res, 429, 'recaptcha_failed', 'reCAPTCHA skoru yetersiz');
     }
     req.recaptchaResult = result;
     next();

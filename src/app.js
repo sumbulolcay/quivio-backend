@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const { sequelize } = require('./models');
 const config = require('./config');
 const errorHandler = require('./middlewares/errorHandler');
+const { langMiddleware } = require('./middlewares/lang');
 
 const publicRoutes = require('./routes/public');
 const authRoutes = require('./routes/auth');
@@ -24,6 +25,7 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(config.cookie.secret));
+app.use(langMiddleware);
 
 app.use('/public', publicRoutes);
 app.use('/auth', authRoutes);

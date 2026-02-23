@@ -8,19 +8,20 @@ const Op = Sequelize.Op;
 async function login(req, res, next) {
   try {
     const { email, password } = req.body;
+    const { sendError } = require('../utils/response');
     if (!email || !password) {
-      return res.status(400).json({ code: 'validation_error', message: 'email ve password gerekli' });
+      return sendError(req, res, 400, 'validation_error', 'email ve password gerekli');
     }
     const user = await User.findOne({
       where: { email: email.trim().toLowerCase() },
       include: [{ model: Business, as: 'Business', attributes: ['id', 'slug', 'name'], required: false }],
     });
     if (!user) {
-      return res.status(401).json({ code: 'invalid_credentials', message: 'E-posta veya şifre hatalı' });
+      return sendError(req, res, 401, 'invalid_credentials', 'E-posta veya şifre hatalı');
     }
     const valid = await comparePassword(password, user.password_hash);
     if (!valid) {
-      return res.status(401).json({ code: 'invalid_credentials', message: 'E-posta veya şifre hatalı' });
+      return sendError(req, res, 401, 'invalid_credentials', 'E-posta veya şifre hatalı');
     }
     const payload = {
       userId: user.id,
@@ -42,21 +43,25 @@ async function register(req, res, next) {
   try {
     const { email, password, name, slug, phone_e164: phoneRaw } = req.body;
     if (!email || !password || !name || !slug || !phoneRaw) {
-      return res.status(400).json({ code: 'validation_error', message: 'email, password, name, slug, phone_e164 zorunlu' });
+      const { sendError } = require('../utils/response');
+      return sendError(req, res, 400, 'validation_error', 'email, password, name, slug, phone_e164 zorunlu');
     }
     const { normalizeE164, isValidE164 } = require('../utils/phone');
     const phone_e164 = normalizeE164(phoneRaw);
     if (!phone_e164 || !isValidE164(phone_e164)) {
-      return res.status(400).json({ code: 'validation_error', message: 'Geçerli bir Türkiye telefon numarası girin (+90...)' });
+      const { sendError } = require('../utils/response');
+      return sendError(req, res, 400, 'validation_error', 'Geçerli bir Türkiye telefon numarası girin (+90...)');
     }
     const normalizedSlug = String(slug).trim().toLowerCase().replace(/\s+/g, '-');
     const existingUser = await User.findOne({ where: { email: email.trim().toLowerCase() } });
     if (existingUser) {
-      return res.status(409).json({ code: 'conflict', message: 'Bu e-posta zaten kullanılıyor' });
+      const { sendError } = require('../utils/response');
+      return sendError(req, res, 409, 'conflict', 'Bu e-posta zaten kullanılıyor');
     }
     const existingBusiness = await Business.findOne({ where: { slug: normalizedSlug } });
     if (existingBusiness) {
-      return res.status(409).json({ code: 'conflict', message: 'Bu slug zaten kullanılıyor' });
+      const { sendError } = require('../utils/response');
+      return sendError(req, res, 409, 'conflict', 'Bu slug zaten kullanılıyor');
     }
     const password_hash = await hashPassword(password);
     const business = await Business.create({

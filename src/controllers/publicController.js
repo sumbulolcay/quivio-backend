@@ -14,8 +14,9 @@ async function getBusinessBySlug(req, res, next) {
       where: { slug: req.params.slug },
       include: [BusinessSettings],
     });
+    const { sendError } = require('../utils/response');
     if (!business) {
-      return res.status(404).json({ code: 'not_found', message: 'İşletme bulunamadı' });
+      return sendError(req, res, 404, 'not_found', 'İşletme bulunamadı');
     }
     await subscriptionService.requireCoreSubscription(business.id);
     const settings = business.BusinessSetting || {};
@@ -34,12 +35,13 @@ async function getBusinessBySlug(req, res, next) {
 async function getEmployees(req, res, next) {
   try {
     const slug = req.query.slug;
+    const { sendError } = require('../utils/response');
     if (!slug) {
-      return res.status(400).json({ code: 'validation_error', message: 'slug gerekli' });
+      return sendError(req, res, 400, 'validation_error', 'slug gerekli');
     }
     const business = await Business.findOne({ where: { slug } });
     if (!business) {
-      return res.status(404).json({ code: 'not_found', message: 'İşletme bulunamadı' });
+      return sendError(req, res, 404, 'not_found', 'İşletme bulunamadı');
     }
     await subscriptionService.requireCoreSubscription(business.id);
     const list = await Employee.findAll({
@@ -55,12 +57,13 @@ async function getEmployees(req, res, next) {
 async function getAvailability(req, res, next) {
   try {
     const { slug, date, employeeId } = req.query;
+    const { sendError } = require('../utils/response');
     if (!slug || !date || !employeeId) {
-      return res.status(400).json({ code: 'validation_error', message: 'slug, date ve employeeId gerekli' });
+      return sendError(req, res, 400, 'validation_error', 'slug, date ve employeeId gerekli');
     }
     const business = await Business.findOne({ where: { slug } });
     if (!business) {
-      return res.status(404).json({ code: 'not_found', message: 'İşletme bulunamadı' });
+      return sendError(req, res, 404, 'not_found', 'İşletme bulunamadı');
     }
     await subscriptionService.requireCoreSubscription(business.id);
     const slots = await availabilityService.getSlotsForEmployee(business.id, parseInt(employeeId, 10), date);
@@ -74,12 +77,13 @@ async function otpStart(req, res, next) {
   try {
     const { slug, phone_e164: rawPhone } = req.body;
     const phoneE164 = normalizeE164(rawPhone) || rawPhone;
+    const { sendError } = require('../utils/response');
     if (!slug || !isValidE164(phoneE164)) {
-      return res.status(400).json({ code: 'validation_error', message: 'slug ve geçerli telefon gerekli' });
+      return sendError(req, res, 400, 'validation_error', 'slug ve geçerli telefon gerekli');
     }
     const business = await Business.findOne({ where: { slug } });
     if (!business) {
-      return res.status(404).json({ code: 'not_found', message: 'İşletme bulunamadı' });
+      return sendError(req, res, 404, 'not_found', 'İşletme bulunamadı');
     }
     await subscriptionService.requireCoreSubscription(business.id);
     const result = await otpService.startOtp(business.id, phoneE164);
@@ -93,12 +97,13 @@ async function otpVerify(req, res, next) {
   try {
     const { slug, phone_e164: rawPhone, code } = req.body;
     const phoneE164 = normalizeE164(rawPhone) || rawPhone;
+    const { sendError } = require('../utils/response');
     if (!slug || !isValidE164(phoneE164) || !code || String(code).length !== 6) {
-      return res.status(400).json({ code: 'validation_error', message: 'slug, telefon ve 6 haneli kod gerekli' });
+      return sendError(req, res, 400, 'validation_error', 'slug, telefon ve 6 haneli kod gerekli');
     }
     const business = await Business.findOne({ where: { slug } });
     if (!business) {
-      return res.status(404).json({ code: 'not_found', message: 'İşletme bulunamadı' });
+      return sendError(req, res, 404, 'not_found', 'İşletme bulunamadı');
     }
     const { customer } = await otpService.verifyOtp(business.id, phoneE164, String(code));
     const exp = Math.floor(Date.now() / 1000) + config.cookie.maxAgeDays * 86400;
@@ -123,20 +128,21 @@ async function otpVerify(req, res, next) {
 async function createAppointment(req, res, next) {
   try {
     const { slug, employee_id, starts_at, name, surname } = req.body;
+    const { sendError } = require('../utils/response');
     if (!slug || !employee_id || !starts_at || !name || !surname) {
-      return res.status(400).json({ code: 'validation_error', message: 'slug, employee_id, starts_at, name, surname zorunlu' });
+      return sendError(req, res, 400, 'validation_error', 'slug, employee_id, starts_at, name, surname zorunlu');
     }
     const session = getCustomerSession(req);
     if (!session || session.businessId === undefined) {
-      return res.status(401).json({ code: 'session_required', message: 'Önce OTP ile giriş yapın' });
+      return sendError(req, res, 401, 'session_required', 'Önce OTP ile giriş yapın');
     }
     const business = await Business.findOne({ where: { slug } });
     if (!business || business.id !== session.businessId) {
-      return res.status(403).json({ code: 'forbidden', message: 'Oturum bu işletme ile eşleşmiyor' });
+      return sendError(req, res, 403, 'forbidden', 'Oturum bu işletme ile eşleşmiyor');
     }
     let customerId = session.customerId;
     if (!customerId) {
-      return res.status(401).json({ code: 'session_required', message: 'Müşteri oturumu gerekli' });
+      return sendError(req, res, 401, 'session_required', 'Müşteri oturumu gerekli');
     }
     const customer = await require('../models').Customer.findByPk(customerId);
     if (customer) {
@@ -164,19 +170,17 @@ async function updateMyAppointment(req, res, next) {
   try {
     const { slug, employee_id, starts_at, name, surname } = req.body;
     const appointmentId = req.params.id;
+    const { sendError } = require('../utils/response');
     if (!slug || !employee_id || !starts_at) {
-      return res.status(400).json({
-        code: 'validation_error',
-        message: 'slug, employee_id ve starts_at zorunlu',
-      });
+      return sendError(req, res, 400, 'validation_error', 'slug, employee_id ve starts_at zorunlu');
     }
     const session = getCustomerSession(req);
     if (!session || !session.customerId) {
-      return res.status(401).json({ code: 'session_required', message: 'Önce OTP ile giriş yapın' });
+      return sendError(req, res, 401, 'session_required', 'Önce OTP ile giriş yapın');
     }
     const business = await Business.findOne({ where: { slug } });
     if (!business || business.id !== session.businessId) {
-      return res.status(403).json({ code: 'forbidden', message: 'Oturum bu işletme ile eşleşmiyor' });
+      return sendError(req, res, 403, 'forbidden', 'Oturum bu işletme ile eşleşmiyor');
     }
     const models = require('../models');
     const customer = await models.Customer.findByPk(session.customerId);
@@ -212,16 +216,17 @@ async function cancelMyAppointment(req, res, next) {
   try {
     const { slug } = req.body;
     const appointmentId = req.params.id;
+    const { sendError } = require('../utils/response');
     if (!slug) {
-      return res.status(400).json({ code: 'validation_error', message: 'slug zorunlu' });
+      return sendError(req, res, 400, 'validation_error', 'slug zorunlu');
     }
     const session = getCustomerSession(req);
     if (!session || !session.customerId) {
-      return res.status(401).json({ code: 'session_required', message: 'Önce OTP ile giriş yapın' });
+      return sendError(req, res, 401, 'session_required', 'Önce OTP ile giriş yapın');
     }
     const business = await Business.findOne({ where: { slug } });
     if (!business || business.id !== session.businessId) {
-      return res.status(403).json({ code: 'forbidden', message: 'Oturum bu işletme ile eşleşmiyor' });
+      return sendError(req, res, 403, 'forbidden', 'Oturum bu işletme ile eşleşmiyor');
     }
     const appointment = await appointmentService.cancelPublicAppointment(
       business.id,
@@ -241,16 +246,17 @@ async function cancelMyAppointment(req, res, next) {
 async function getMyUpcomingAppointments(req, res, next) {
   try {
     const { slug } = req.query;
+    const { sendError } = require('../utils/response');
     if (!slug) {
-      return res.status(400).json({ code: 'validation_error', message: 'slug gerekli' });
+      return sendError(req, res, 400, 'validation_error', 'slug gerekli');
     }
     const session = getCustomerSession(req);
     if (!session || !session.customerId) {
-      return res.status(401).json({ code: 'session_required', message: 'Önce OTP ile giriş yapın' });
+      return sendError(req, res, 401, 'session_required', 'Önce OTP ile giriş yapın');
     }
     const business = await Business.findOne({ where: { slug } });
     if (!business || business.id !== session.businessId) {
-      return res.status(403).json({ code: 'forbidden', message: 'Oturum bu işletme ile eşleşmiyor' });
+      return sendError(req, res, 403, 'forbidden', 'Oturum bu işletme ile eşleşmiyor');
     }
     const { Appointment, Employee } = require('../models');
     const Sequelize = require('sequelize');
@@ -285,19 +291,23 @@ function getTodayDateStr() {
 async function createQueueEntry(req, res, next) {
   try {
     const { slug, employee_id: employeeId } = req.body;
+    const { sendError } = require('../utils/response');
     if (!slug) {
-      return res.status(400).json({ code: 'validation_error', message: 'slug zorunlu' });
+      return sendError(req, res, 400, 'validation_error', 'slug zorunlu');
     }
     const session = getCustomerSession(req);
     if (!session || !session.customerId) {
-      return res.status(401).json({
-        code: 'session_required',
-        message: 'Sıra almak için telefon numarası doğrulaması gerekli. Önce OTP ile giriş yapın.',
-      });
+      return sendError(
+        req,
+        res,
+        401,
+        'session_required',
+        'Sıra almak için telefon numarası doğrulaması gerekli. Önce OTP ile giriş yapın.',
+      );
     }
     const business = await Business.findOne({ where: { slug } });
     if (!business || business.id !== session.businessId) {
-      return res.status(403).json({ code: 'forbidden', message: 'Oturum bu işletme ile eşleşmiyor' });
+      return sendError(req, res, 403, 'forbidden', 'Oturum bu işletme ile eşleşmiyor');
     }
     await subscriptionService.requireCoreSubscription(business.id);
     const Sequelize = require('sequelize');
@@ -314,7 +324,7 @@ async function createQueueEntry(req, res, next) {
     if (existingToday) {
       return res.status(400).json({
         code: 'one_queue_per_day',
-        message: 'Bugün için zaten bir sıra numaranız var.',
+        message: require('../i18n').translate(req.lang || 'tr', 'one_queue_per_day', 'Bugün için zaten bir sıra numaranız var.'),
         queue_number: existingToday.position,
         existing: {
           id: existingToday.id,
