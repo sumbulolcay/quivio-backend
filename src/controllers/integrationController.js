@@ -95,7 +95,25 @@ async function testWhatsapp(req, res, next) {
     }
     const { sendTextMessage } = require('../providers/whatsapp/sendMessage');
     const to = business.phone_e164.replace(/^\+/, '');
-    await sendTextMessage(integration.phone_number_id, token, to, 'Test mesajı. Qivio WhatsApp bağlantınız aktiftir.');
+    try {
+      await sendTextMessage(integration.phone_number_id, token, to, 'Test mesajı. Qivio WhatsApp bağlantınız aktiftir.');
+    } catch (sendErr) {
+      const status = sendErr.status || sendErr.statusCode;
+      if (status === 401) {
+        await integration.update({ status: 'disconnected' });
+        return res.status(400).json({
+          code: 'whatsapp_token_invalid',
+          message: 'WhatsApp erişim token\'ı geçersiz veya süresi dolmuş. Yeniden bağlanın.',
+        });
+      }
+      if (status >= 400 && status < 500) {
+        return res.status(400).json({
+          code: 'whatsapp_api_error',
+          message: sendErr.message || 'WhatsApp API hatası. Bağlantıyı kontrol edin.',
+        });
+      }
+      throw sendErr;
+    }
     res.json({ success: true, message: 'Test mesajı gönderildi' });
   } catch (err) {
     next(err);
