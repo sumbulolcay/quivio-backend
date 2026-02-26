@@ -39,7 +39,7 @@ if (isProduction && config.database.url) {
 
 const sequelize = new Sequelize(databaseUrl, {
   dialect: 'postgres',
-  logging: config.env === 'development' ? console.log : false,
+  logging: false,
   dialectOptions: Object.keys(dialectOptions).length ? dialectOptions : undefined,
   define: {
     underscored: true,

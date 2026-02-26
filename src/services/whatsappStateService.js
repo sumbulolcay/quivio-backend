@@ -8,7 +8,8 @@ const { Op } = require('sequelize');
 
 const SESSION_TTL_MINUTES = config.whatsapp.sessionTtlMinutes || 15;
 const MAX_DATE_DAYS = 10;
-const STATES = ['WELCOME', 'DATE_SELECT', 'EMPLOYEE_SELECT', 'TIME_SELECT', 'CONFIRM', 'QUEUE_CONFIRM', 'DONE', 'CANCELLED'];
+const STATES = ['WELCOME', 'DATE_SELECT', 'EMPLOYEE_SELECT', 'TIME_SELECT', 'CONFIRM', 'QUEUE_CONFIRM', 'MY_APPOINTMENTS', 'APPOINTMENT_ACTION', 'CONFIRM_CANCEL_APPOINTMENT', 'DONE', 'CANCELLED'];
+const CANCEL_HOURS_MIN = 2; // Randevuya X saatten az kaldıysa iptal yok
 
 /** Bugünden itibaren n gün sonrasının YYYY-MM-DD değeri */
 function dateFromTodayOffset(n) {
@@ -44,7 +45,7 @@ async function getOrCreateSession(businessId, waId) {
     if (session.expires_at && new Date(session.expires_at) < now) {
       await session.update({
         state: 'WELCOME',
-        context_json: {},
+        context_json: { _timedOut: true },
         last_message_at: now,
         expires_at: expiresAt,
       });
@@ -179,15 +180,11 @@ function getDateOptionsForList(t) {
   return { bodyText: t('date_select_body'), sections: [{ title: t('date_section_title'), rows }] };
 }
 
-/**
- * Çalışan listesi için sections (randevu veya sıra).
- * bodyText: işletme ayarı employee_selection_label yoksa t('employee_select_body') kullanılır.
- */
-async function getEmployeeListRows(businessId, { t, employeeSelectionLabel }) {
+/** Çalışan listesi için sections. bodyText çeviriden gelir (employee_select_body). */
+async function getEmployeeListRows(businessId, { t }) {
   const employees = await getActiveEmployees(businessId);
   const rows = employees.map((e) => ({ id: String(e.id), title: [e.name, e.surname].filter(Boolean).join(' ').trim() || `Çalışan ${e.id}` }));
-  const bodyText = (employeeSelectionLabel && employeeSelectionLabel.trim()) ? employeeSelectionLabel.trim() : t('employee_select_body');
-  return { bodyText, sections: [{ title: t('employees_section_title'), rows }] };
+  return { bodyText: t('employee_select_body'), sections: [{ title: t('employees_section_title'), rows }] };
 }
 
 /** O gün + çalışan için müsait saatler. t: getWaT(lang). */
@@ -212,12 +209,23 @@ async function formatConfirmSummary(session, t, locale) {
   return `${t('confirm_summary_prefix')}\n• ${t('confirm_summary_day')}: ${dateLabel}\n• ${t('confirm_summary_employee')}: ${empName}\n• ${t('confirm_summary_time')}: ${slot}\n\n${t('confirm_summary_question')}`;
 }
 
-/** Randevu sonucu mesajı (otomatik onay / onaya gönderildi). t: getWaT(lang). */
-function getResultMessageForAppointment(appointment, t) {
-  if (appointment.approval_status === 'approved') {
-    return t('appointment_approved');
-  }
-  return t('appointment_pending');
+/**
+ * Randevu sonucu mesajı (onay / beklemede). Tarih ve saat yan yana yazılır;
+ * WA/telefon bunu algılayıp tıklanınca takvime ekleme seçeneği sunar.
+ * @param {string} [locale] - 'tr-TR' | 'en-US' (işletme diline göre)
+ */
+async function getResultMessageForAppointment(appointment, t, locale) {
+  const statusLine =
+    appointment.approval_status === 'approved' ? t('appointment_approved') : t('appointment_pending');
+  const emp = await Employee.findByPk(appointment.employee_id, { attributes: ['name', 'surname'] });
+  const empName = emp ? [emp.name, emp.surname].filter(Boolean).join(' ').trim() : '';
+  const start = new Date(appointment.starts_at);
+  const loc = locale || 'tr-TR';
+  const dateStr = start.toLocaleDateString(loc, { day: 'numeric', month: 'long', year: 'numeric' });
+  const timeStr = start.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
+  const dateTimeLine = `${dateStr} ${timeStr}`;
+  const infoLine = empName ? `${dateTimeLine} - ${empName}` : dateTimeLine;
+  return `${statusLine}\n\n${infoLine}`;
 }
 
 /** Sıra girişi oluşturur; queue_date = bugün, position = o günkü sıradaki sonraki numara. */
@@ -241,6 +249,75 @@ async function createQueueEntryFromSession(session, waUserId) {
   return entry;
 }
 
+/** Kullanıcının aktif (ilerideki, iptal edilmemiş) randevuları. waId = session.wa_id. */
+async function getActiveAppointmentsForWaUser(businessId, waId) {
+  const waUser = await WaUser.findOne({ where: { business_id: businessId, wa_id: waId }, attributes: ['id', 'wa_id'] });
+  const orConditions = waUser ? [{ wa_user_id: waUser.id }] : [];
+  if (waUser && waUser.wa_id) {
+    const phoneE164 = normalizeE164(waUser.wa_id) || (waUser.wa_id.startsWith('90') ? '+' + waUser.wa_id : null);
+    if (phoneE164) {
+      const customer = await Customer.findOne({
+        where: { business_id: businessId, phone_e164: phoneE164 },
+        attributes: ['id'],
+      });
+      if (customer) orConditions.push({ customer_id: customer.id });
+    }
+  }
+  if (orConditions.length === 0) return [];
+  const now = new Date();
+  return Appointment.findAll({
+    where: {
+      business_id: businessId,
+      status: { [Op.ne]: 'cancelled' },
+      starts_at: { [Op.gte]: now },
+      [Op.or]: orConditions,
+    },
+    include: [{ model: Employee, attributes: ['id', 'name', 'surname'], required: true }],
+    order: [['starts_at', 'ASC']],
+    limit: 10,
+  });
+}
+
+/** Randevularım listesi için sections. waId = session.wa_id. */
+async function getMyAppointmentsListRows(businessId, waId, t, locale) {
+  const appointments = await getActiveAppointmentsForWaUser(businessId, waId);
+  if (appointments.length === 0) return { bodyText: t('my_appointments_no'), sections: [], isEmpty: true };
+  const rows = appointments.map((a) => {
+    const emp = a.Employee;
+    const empName = emp ? [emp.name, emp.surname].filter(Boolean).join(' ').trim() : '';
+    const d = new Date(a.starts_at);
+    const dateStr = d.toLocaleDateString(locale || 'tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString(locale || 'tr-TR', { hour: '2-digit', minute: '2-digit' });
+    const title = `${dateStr} ${timeStr}`.slice(0, 24);
+    return { id: String(a.id), title };
+  });
+  return { bodyText: t('my_appointments_body'), sections: [{ title: t('my_appointments_section_title'), rows }], isEmpty: false };
+}
+
+/**
+ * Randevuyu iptal eder. Edge: zaten iptal, geçmiş, 2 saatten az kala. waId = session.wa_id.
+ * @returns {{ cancelled: boolean, reason?: string, messageKey?: string }}
+ */
+async function cancelAppointmentByWaUser(businessId, appointmentId, waId) {
+  const appointments = await getActiveAppointmentsForWaUser(businessId, waId);
+  const appointment = appointments.find((a) => a.id === parseInt(appointmentId, 10));
+  if (!appointment) {
+    const a = await Appointment.findOne({
+      where: { id: parseInt(appointmentId, 10), business_id: businessId },
+    });
+    if (!a) return { cancelled: false, reason: 'not_found' };
+    if (a.status === 'cancelled') return { cancelled: false, reason: 'already_cancelled', messageKey: 'cancel_already' };
+    if (new Date(a.starts_at) < new Date()) return { cancelled: false, reason: 'past', messageKey: 'cancel_past' };
+    return { cancelled: false, reason: 'not_owned' };
+  }
+  const now = new Date();
+  const startsAt = new Date(appointment.starts_at);
+  const hoursLeft = (startsAt - now) / (1000 * 60 * 60);
+  if (hoursLeft < CANCEL_HOURS_MIN) return { cancelled: false, reason: 'too_close', messageKey: 'cancel_too_close' };
+  await appointment.update({ status: 'cancelled' });
+  return { cancelled: true };
+}
+
 module.exports = {
   resolveBusinessFromPhoneNumberId,
   resolveIntegrationByPhoneNumberId,
@@ -256,6 +333,9 @@ module.exports = {
   formatConfirmSummary,
   getResultMessageForAppointment,
   createQueueEntryFromSession,
+  getActiveAppointmentsForWaUser,
+  getMyAppointmentsListRows,
+  cancelAppointmentByWaUser,
   dateFromTodayOffset,
   MAX_DATE_DAYS,
   SESSION_TTL_MINUTES,
