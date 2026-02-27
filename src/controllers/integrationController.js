@@ -1,3 +1,4 @@
+const config = require('../config');
 const { WhatsappIntegration, Business } = require('../models');
 const subscriptionService = require('../services/subscriptionService');
 
@@ -41,16 +42,43 @@ async function connectWhatsapp(req, res, next) {
     if (!canUse) {
       return res.status(403).json({ code: 'plan_required', message: 'WhatsApp planı gerekli' });
     }
-    const { phone_number_id, token } = req.body;
+    const { phone_number_id, access_code } = req.body;
     if (!phone_number_id) {
       return res.status(400).json({ code: 'validation_error', message: 'phone_number_id zorunlu' });
     }
+    if (!access_code) {
+      return res.status(400).json({ code: 'validation_error', message: 'access_code zorunlu' });
+    }
+    const appId = config.whatsapp?.appId;
+    const appSecret = config.whatsapp?.appSecret;
+    if (!appId || !appSecret) {
+      return res.status(500).json({ code: 'config_error', message: 'WhatsApp APP_ID veya APP_SECRET tanımlı değil' });
+    }
+    const tokenUrl = new URL('https://graph.facebook.com/v20.0/oauth/access_token');
+    tokenUrl.searchParams.set('client_id', appId);
+    tokenUrl.searchParams.set('client_secret', appSecret);
+    tokenUrl.searchParams.set('code', access_code);
+    const tokenRes = await fetch(tokenUrl.toString());
+    const tokenData = await tokenRes.json().catch(() => ({}));
+    if (!tokenRes.ok) {
+      return res.status(400).json({
+        code: 'whatsapp_token_exchange_failed',
+        message: tokenData.error?.message || 'Access token alınamadı. Yeniden bağlanmayı deneyin.',
+      });
+    }
+    const accessToken = tokenData.access_token;
+    if (!accessToken) {
+      return res.status(400).json({
+        code: 'whatsapp_token_exchange_failed',
+        message: 'Access token yanıtı geçersiz.',
+      });
+    }
     const [integration] = await WhatsappIntegration.findOrCreate({
       where: { business_id: req.businessId },
-      defaults: { business_id: req.businessId, phone_number_id, token_encrypted: token || null, status: 'active' },
+      defaults: { business_id: req.businessId, phone_number_id, token_encrypted: accessToken, status: 'active' },
     });
     if (!integration.isNewRecord) {
-      await integration.update({ phone_number_id, token_encrypted: token || integration.token_encrypted, status: 'active' });
+      await integration.update({ phone_number_id, token_encrypted: accessToken, status: 'active' });
     }
     res.json({ connected: true, phone_number_id: integration.phone_number_id });
   } catch (err) {

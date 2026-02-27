@@ -66,6 +66,7 @@ module.exports = {
 
   whatsapp: {
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
+    appId: process.env.WHATSAPP_APP_ID,
     appSecret: process.env.WHATSAPP_APP_SECRET,
     sessionTtlMinutes: 15,
   },
