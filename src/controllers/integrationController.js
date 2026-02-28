@@ -117,12 +117,16 @@ async function testWhatsapp(req, res, next) {
     if (!token) {
       return res.status(400).json({ code: 'no_token', message: 'Bağlantı token\'ı yok; yeniden bağlayın' });
     }
-    const business = await Business.findByPk(req.businessId, { attributes: ['phone_e164'] });
-    if (!business || !business.phone_e164) {
-      return res.status(400).json({ code: 'no_phone', message: 'İşletme telefon numarası tanımlı değil' });
+    const { phone } = req.body || {};
+    let to = phone;
+    if (!to) {
+      const business = await Business.findByPk(req.businessId, { attributes: ['phone_e164'] });
+      if (!business || !business.phone_e164) {
+        return res.status(400).json({ code: 'no_phone', message: 'İşletme telefon numarası tanımlı değil' });
+      }
+      to = business.phone_e164;
     }
     const { sendTextMessage } = require('../providers/whatsapp/sendMessage');
-    const to = business.phone_e164.replace(/^\+/, '');
     try {
       await sendTextMessage(integration.phone_number_id, token, to, 'Test mesajı. Qivio WhatsApp bağlantınız aktiftir.');
     } catch (sendErr) {
