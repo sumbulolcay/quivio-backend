@@ -1,6 +1,8 @@
 const config = require('../config');
-const { WhatsappIntegration, Business } = require('../models');
+const { WhatsappIntegration, Business, WhatsappMessageLog } = require('../models');
 const subscriptionService = require('../services/subscriptionService');
+const waPayload = require('../utils/waPayload');
+const { Op } = require('sequelize');
 
 async function getWhatsapp(req, res, next) {
   try {
@@ -152,4 +154,68 @@ async function testWhatsapp(req, res, next) {
   }
 }
 
-module.exports = { getWhatsapp, connectWhatsapp, disconnectWhatsapp, testWhatsapp };
+/** payload_json'dan gösterim için from_wa_id ve text çıkarır */
+function extractDisplayFromPayload(payload) {
+  if (!payload || typeof payload !== 'object') return { from_wa_id: null, text_preview: null };
+  try {
+    const message = waPayload.getMessage(payload);
+    const from = message ? waPayload.getFromWaId(message) : null;
+    const text = message ? waPayload.getText(message) : null;
+    const preview = text ? (text.length > 100 ? text.slice(0, 100) + '…' : text) : null;
+    return { from_wa_id: from || null, text_preview: preview };
+  } catch {
+    return { from_wa_id: null, text_preview: null };
+  }
+}
+
+async function getWhatsappMessageLogs(req, res, next) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const fromDate = req.query.from_date ? new Date(req.query.from_date) : null;
+    const toDate = req.query.to_date ? new Date(req.query.to_date) : null;
+
+    const where = { business_id: req.businessId };
+    const dateCond = {};
+    if (fromDate && !Number.isNaN(fromDate.getTime())) dateCond[Op.gte] = fromDate;
+    if (toDate && !Number.isNaN(toDate.getTime())) {
+      const endOfDay = new Date(toDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      dateCond[Op.lte] = endOfDay;
+    }
+    if (Object.keys(dateCond).length) where.created_at = dateCond;
+
+    const { count, rows } = await WhatsappMessageLog.findAndCountAll({
+      where,
+      order: [['created_at', 'DESC']],
+      limit,
+      offset: (page - 1) * limit,
+      attributes: ['id', 'business_id', 'direction', 'message_id', 'payload_json', 'created_at'],
+    });
+
+    const items = rows.map((row) => {
+      const { from_wa_id, text_preview } = extractDisplayFromPayload(row.payload_json);
+      return {
+        id: row.id,
+        business_id: row.business_id,
+        direction: row.direction,
+        message_id: row.message_id,
+        from_wa_id: from_wa_id,
+        text_preview: text_preview,
+        created_at: row.created_at,
+      };
+    });
+
+    res.json({
+      items,
+      total: count,
+      page,
+      limit,
+      total_pages: Math.ceil(count / limit) || 1,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getWhatsapp, connectWhatsapp, disconnectWhatsapp, testWhatsapp, getWhatsappMessageLogs };

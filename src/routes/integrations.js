@@ -8,6 +8,7 @@ router.use(requireBusinessId);
 router.use(attachBusiness);
 
 router.get('/whatsapp', integrationController.getWhatsapp);
+router.get('/whatsapp/logs', integrationController.getWhatsappMessageLogs);
 router.post('/whatsapp/connect', integrationController.connectWhatsapp);
 router.post('/whatsapp/disconnect', integrationController.disconnectWhatsapp);
 router.post('/whatsapp/test', integrationController.testWhatsapp);
