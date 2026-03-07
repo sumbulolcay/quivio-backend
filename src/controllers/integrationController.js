@@ -1,7 +1,6 @@
 const config = require('../config');
 const { WhatsappIntegration, Business, WhatsappMessageLog } = require('../models');
 const subscriptionService = require('../services/subscriptionService');
-const waPayload = require('../utils/waPayload');
 const { Op } = require('sequelize');
 
 async function getWhatsapp(req, res, next) {
@@ -130,7 +129,7 @@ async function testWhatsapp(req, res, next) {
     }
     const { sendTextMessage } = require('../providers/whatsapp/sendMessage');
     try {
-      await sendTextMessage(integration.phone_number_id, token, to, 'Test mesajı. Qivio WhatsApp bağlantınız aktiftir.');
+      await sendTextMessage(integration.phone_number_id, token, to, 'Test mesajı. Qivio WhatsApp bağlantınız aktiftir.', { businessId: req.businessId });
     } catch (sendErr) {
       const status = sendErr.status || sendErr.statusCode;
       if (status === 401) {
@@ -151,20 +150,6 @@ async function testWhatsapp(req, res, next) {
     res.json({ success: true, message: 'Test mesajı gönderildi' });
   } catch (err) {
     next(err);
-  }
-}
-
-/** payload_json'dan gösterim için from_wa_id ve text çıkarır */
-function extractDisplayFromPayload(payload) {
-  if (!payload || typeof payload !== 'object') return { from_wa_id: null, text_preview: null };
-  try {
-    const message = waPayload.getMessage(payload);
-    const from = message ? waPayload.getFromWaId(message) : null;
-    const text = message ? waPayload.getText(message) : null;
-    const preview = text ? (text.length > 100 ? text.slice(0, 100) + '…' : text) : null;
-    return { from_wa_id: from || null, text_preview: preview };
-  } catch {
-    return { from_wa_id: null, text_preview: null };
   }
 }
 
@@ -190,21 +175,19 @@ async function getWhatsappMessageLogs(req, res, next) {
       order: [['created_at', 'DESC']],
       limit,
       offset: (page - 1) * limit,
-      attributes: ['id', 'business_id', 'direction', 'message_id', 'payload_json', 'created_at'],
+      attributes: ['id', 'business_id', 'direction', 'message_id', 'phone_wa_id', 'message_type', 'message_body', 'created_at'],
     });
 
-    const items = rows.map((row) => {
-      const { from_wa_id, text_preview } = extractDisplayFromPayload(row.payload_json);
-      return {
-        id: row.id,
-        business_id: row.business_id,
-        direction: row.direction,
-        message_id: row.message_id,
-        from_wa_id: from_wa_id,
-        text_preview: text_preview,
-        created_at: row.created_at,
-      };
-    });
+    const items = rows.map((row) => ({
+      id: row.id,
+      business_id: row.business_id,
+      direction: row.direction,
+      message_id: row.message_id,
+      phone_wa_id: row.phone_wa_id,
+      message_type: row.message_type,
+      message_body: row.message_body,
+      created_at: row.created_at,
+    }));
 
     res.json({
       items,

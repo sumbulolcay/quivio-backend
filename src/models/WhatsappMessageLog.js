@@ -23,9 +23,25 @@ const WhatsappMessageLog = sequelize.define('WhatsappMessageLog', {
     allowNull: true,
     comment: 'Idempotency için',
   },
+  phone_wa_id: {
+    type: DataTypes.STRING(32),
+    allowNull: true,
+    comment: 'Gelen: from, giden: to (karşı taraf numarası)',
+  },
+  message_type: {
+    type: DataTypes.STRING(32),
+    allowNull: true,
+    comment: 'text | interactive | vb.',
+  },
+  message_body: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Metin içeriği veya kısa özet',
+  },
   payload_json: {
     type: DataTypes.JSONB,
     allowNull: true,
+    comment: 'Ham payload (yedek); yeni kayıtlarda boş bırakılabilir',
   },
 }, {
   tableName: 'whatsapp_message_logs',

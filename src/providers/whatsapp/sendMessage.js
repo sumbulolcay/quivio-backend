@@ -1,3 +1,5 @@
+const { WhatsappMessageLog } = require('../../models');
+
 const toClean = (to) => {
   const s = String(to).replace(/\D/g, '');
   if (!s.length) {
@@ -8,7 +10,8 @@ const toClean = (to) => {
   return s;
 };
 
-async function request(phoneNumberId, accessToken, to, body) {
+async function request(phoneNumberId, accessToken, to, body, options = {}) {
+  const { businessId } = options;
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
   const res = await fetch(url, {
     method: 'POST',
@@ -30,24 +33,38 @@ async function request(phoneNumberId, accessToken, to, body) {
     err.meta = data.error;
     throw err;
   }
+  const messageId = data.messages && data.messages[0] && data.messages[0].id;
+  if (businessId && messageId) {
+    WhatsappMessageLog.create({
+      business_id: businessId,
+      direction: 'outbound',
+      message_id: messageId,
+      phone_wa_id: toClean(to),
+      message_type: body.type || null,
+      message_body: options.messageBody || null,
+      payload_json: null,
+    }).catch((e) => console.warn('[WhatsApp] Outbound log create failed:', e.message));
+  }
   return data;
 }
 
 /**
  * WhatsApp Cloud API ile tek bir metin mesajı gönderir.
+ * @param {number} [options.businessId] - Varsa outbound mesaj loglanır
  */
-async function sendTextMessage(phoneNumberId, accessToken, to, text) {
+async function sendTextMessage(phoneNumberId, accessToken, to, text, options = {}) {
   return request(phoneNumberId, accessToken, to, {
     type: 'text',
     text: { body: text },
-  });
+  }, { ...options, messageBody: text });
 }
 
 /**
  * İnteraktif buton mesajı (en fazla 3 buton).
  * @param {Array<{id: string, title: string}>} buttons - id max 256, title max 20 karakter
+ * @param {number} [options.businessId] - Varsa outbound mesaj loglanır
  */
-async function sendInteractiveButtons(phoneNumberId, accessToken, to, bodyText, buttons) {
+async function sendInteractiveButtons(phoneNumberId, accessToken, to, bodyText, buttons, options = {}) {
   return request(phoneNumberId, accessToken, to, {
     type: 'interactive',
     interactive: {
@@ -60,15 +77,16 @@ async function sendInteractiveButtons(phoneNumberId, accessToken, to, bodyText, 
         })),
       },
     },
-  });
+  }, { ...options, messageBody: bodyText });
 }
 
 /**
  * İnteraktif liste mesajı.
  * @param {string} buttonLabel - Liste buton etiketi (max 20 karakter)
  * @param {Array<{title: string, rows: Array<{id: string, title: string}>}>} sections - section title max 24, row id max 200, row title max 24
+ * @param {number} [options.businessId] - Varsa outbound mesaj loglanır
  */
-async function sendInteractiveList(phoneNumberId, accessToken, to, bodyText, buttonLabel, sections) {
+async function sendInteractiveList(phoneNumberId, accessToken, to, bodyText, buttonLabel, sections, options = {}) {
   return request(phoneNumberId, accessToken, to, {
     type: 'interactive',
     interactive: {
@@ -85,7 +103,7 @@ async function sendInteractiveList(phoneNumberId, accessToken, to, bodyText, but
         })),
       },
     },
-  });
+  }, { ...options, messageBody: bodyText });
 }
 
 module.exports = { sendTextMessage, sendInteractiveButtons, sendInteractiveList };

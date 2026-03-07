@@ -40,11 +40,12 @@ async function sendReplyForState(integration, waId, session) {
   const { t, locale } = await loadWaSettings(session.business_id);
   const state = session.state;
   const ctx = whatsappStateService.getContext(session);
+  const logOpts = { businessId: session.business_id };
 
   if (state === 'WELCOME') {
     const ctx = whatsappStateService.getContext(session);
     if (ctx._timedOut) {
-      await sendTextMessage(phoneNumberId, token, waId, t('timeout_message'));
+      await sendTextMessage(phoneNumberId, token, waId, t('timeout_message'), logOpts);
       if (typeof session.update === 'function') {
         await session.update({ context_json: {} }).catch(() => {});
       }
@@ -60,19 +61,19 @@ async function sendReplyForState(integration, waId, session) {
         ],
       },
     ];
-    await sendInteractiveList(phoneNumberId, token, waId, body, t('welcome_list_button'), sections);
+    await sendInteractiveList(phoneNumberId, token, waId, body, t('welcome_list_button'), sections, logOpts);
     return;
   }
 
   if (state === 'DATE_SELECT') {
     const { bodyText, sections } = whatsappStateService.getDateOptionsForList(t);
-    await sendInteractiveList(phoneNumberId, token, waId, bodyText, t('date_select_button'), sections);
+    await sendInteractiveList(phoneNumberId, token, waId, bodyText, t('date_select_button'), sections, logOpts);
     return;
   }
 
   if (state === 'EMPLOYEE_SELECT') {
     const { bodyText, sections } = await whatsappStateService.getEmployeeListRows(session.business_id, { t });
-    await sendInteractiveList(phoneNumberId, token, waId, bodyText, t('employee_select_button'), sections);
+    await sendInteractiveList(phoneNumberId, token, waId, bodyText, t('employee_select_button'), sections, logOpts);
     return;
   }
 
@@ -90,10 +91,10 @@ async function sendReplyForState(integration, waId, session) {
         { id: 'other_employee', title: t('no_slots_btn_other_employee') },
         { id: 'menu', title: t('no_slots_btn_menu') },
       ];
-      await sendInteractiveButtons(phoneNumberId, token, waId, noSlotsBody, noSlotsButtons);
+      await sendInteractiveButtons(phoneNumberId, token, waId, noSlotsBody, noSlotsButtons, logOpts);
       return;
     }
-    await sendInteractiveList(phoneNumberId, token, waId, bodyText, t('time_select_button'), sections);
+    await sendInteractiveList(phoneNumberId, token, waId, bodyText, t('time_select_button'), sections, logOpts);
     return;
   }
 
@@ -111,7 +112,7 @@ async function sendReplyForState(integration, waId, session) {
         ],
       },
     ];
-    await sendInteractiveList(phoneNumberId, token, waId, summary, t('confirm_list_button'), sections);
+    await sendInteractiveList(phoneNumberId, token, waId, summary, t('confirm_list_button'), sections, logOpts);
     return;
   }
 
@@ -121,7 +122,7 @@ async function sendReplyForState(integration, waId, session) {
       { id: 'confirm', title: t('queue_btn_confirm') },
       { id: 'cancel', title: t('queue_btn_cancel') },
     ];
-    await sendInteractiveButtons(phoneNumberId, token, waId, body, buttons);
+    await sendInteractiveButtons(phoneNumberId, token, waId, body, buttons, logOpts);
     return;
   }
 
@@ -134,10 +135,10 @@ async function sendReplyForState(integration, waId, session) {
     );
 
     if (isEmpty) {
-      await sendTextMessage(phoneNumberId, token, waId, bodyText);
+      await sendTextMessage(phoneNumberId, token, waId, bodyText, logOpts);
       return;
     }
-    await sendInteractiveList(phoneNumberId, token, waId, bodyText, t('my_appointments_list_button'), sections);
+    await sendInteractiveList(phoneNumberId, token, waId, bodyText, t('my_appointments_list_button'), sections, logOpts);
     return;
   }
 
@@ -148,7 +149,7 @@ async function sendReplyForState(integration, waId, session) {
       { id: 'keep', title: t('appointment_action_keep') },
       { id: 'exit', title: t('appointment_action_exit') },
     ];
-    await sendInteractiveButtons(phoneNumberId, token, waId, body, buttons);
+    await sendInteractiveButtons(phoneNumberId, token, waId, body, buttons, logOpts);
     return;
   }
 
@@ -158,12 +159,12 @@ async function sendReplyForState(integration, waId, session) {
       { id: 'confirm_cancel', title: t('confirm_cancel_btn_confirm') },
       { id: 'back', title: t('confirm_cancel_btn_back') },
     ];
-    await sendInteractiveButtons(phoneNumberId, token, waId, body, buttons);
+    await sendInteractiveButtons(phoneNumberId, token, waId, body, buttons, logOpts);
     return;
   }
 
   if (state === 'CANCELLED') {
-    await sendTextMessage(phoneNumberId, token, waId, t('cancelled_message'));
+    await sendTextMessage(phoneNumberId, token, waId, t('cancelled_message'), logOpts);
     return;
   }
 }
@@ -177,7 +178,7 @@ async function sendAppointmentResult(integration, waId, appointment) {
   if (!token) return;
   const { t, locale } = await loadWaSettings(appointment.business_id);
   const text = await whatsappStateService.getResultMessageForAppointment(appointment, t, locale);
-  await sendTextMessage(phoneNumberId, token, waId, text);
+  await sendTextMessage(phoneNumberId, token, waId, text, { businessId: appointment.business_id });
 }
 
 /**
@@ -193,7 +194,7 @@ async function sendQueueResult(integration, waId, position, businessId) {
     text += ` ${t('queue_result_position')} ${position + 1}.`;
   }
   text += '\n' + t('queue_result_suffix');
-  await sendTextMessage(phoneNumberId, token, waId, text);
+  await sendTextMessage(phoneNumberId, token, waId, text, { businessId });
 }
 
 module.exports = {

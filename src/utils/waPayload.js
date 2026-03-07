@@ -38,6 +38,26 @@ function getText(message) {
   return text && text.body ? text.body.trim() : null;
 }
 
+/** Mesaj tipi: text | interactive | vb. */
+function getMessageType(message) {
+  return (message && message.type) || null;
+}
+
+/** Log için mesaj içeriği: metin gövdesi veya seçilen liste/buton metni (title). */
+function getMessageBody(message) {
+  if (!message) return null;
+  if (message.type === 'text' && message.text && message.text.body) {
+    return message.text.body.trim();
+  }
+  if (message.type === 'interactive' && message.interactive) {
+    const title = message.interactive.button_reply?.title || message.interactive.list_reply?.title;
+    if (title && String(title).trim()) return String(title).trim();
+    const id = message.interactive.button_reply?.id || message.interactive.list_reply?.id;
+    return id ? String(id) : message.interactive.type || null;
+  }
+  return null;
+}
+
 function getInteractiveResponse(message) {
   const interactive = message && message.interactive;
   if (!interactive) return null;
@@ -64,6 +84,8 @@ module.exports = {
   getFromWaId,
   getContactProfile,
   getText,
+  getMessageType,
+  getMessageBody,
   getInteractiveResponse,
   getValueFromPayload,
 };

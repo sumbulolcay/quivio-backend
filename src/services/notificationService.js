@@ -18,7 +18,7 @@ async function sendWhatsAppToAppointmentCustomer(businessId, waUserId, textOrKey
     text = getWaT(lang)(textOrKey);
   }
   try {
-    await sendTextMessage(integration.phone_number_id, integration.token_encrypted, waUser.wa_id, text);
+    await sendTextMessage(integration.phone_number_id, integration.token_encrypted, waUser.wa_id, text, { businessId });
   } catch (err) {
     console.error('[notification] whatsapp send failed', err.message);
   }

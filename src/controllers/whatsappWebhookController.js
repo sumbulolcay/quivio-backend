@@ -49,11 +49,17 @@ async function handleIncoming(req, res, next) {
     if (existing) {
       return res.status(200).send('OK');
     }
+    const phoneWaId = waPayload.getFromWaId(message) || null;
+    const messageType = waPayload.getMessageType(message) || null;
+    const messageBody = waPayload.getMessageBody(message) || null;
     await WhatsappMessageLog.create({
       business_id: businessId,
       direction: 'inbound',
       message_id: messageId,
-      payload_json: req.body,
+      phone_wa_id: phoneWaId,
+      message_type: messageType,
+      message_body: messageBody,
+      payload_json: null,
     });
     const value = waPayload.getValueFromPayload(req.body);
     const profile = waPayload.getContactProfile(value);
@@ -99,7 +105,7 @@ async function handleIncoming(req, res, next) {
       } else if (rawText === 'randevularım') {
         await session.update({ state: 'MY_APPOINTMENTS', context_json: whatsappStateService.getContext(session) });
       } else if (['WELCOME', 'EMPLOYEE_SELECT', 'DATE_SELECT', 'TIME_SELECT', 'CONFIRM', 'MY_APPOINTMENTS', 'APPOINTMENT_ACTION', 'CONFIRM_CANCEL_APPOINTMENT', 'QUEUE_CONFIRM'].includes(session.state)) {
-        if (token) await sendTextMessage(integration.phone_number_id, token, waId, t('invalid_selection'));
+        if (token) await sendTextMessage(integration.phone_number_id, token, waId, t('invalid_selection'), { businessId });
         // Mevcut adım aşağıda sendReplyForState ile gönderilir
       }
       if (rawText) {
@@ -120,7 +126,7 @@ async function handleIncoming(req, res, next) {
             const lang = (settings && settings.whatsapp_lang) ? settings.whatsapp_lang : 'tr';
             const t = getWaT(lang);
             const token = integration.token_encrypted;
-            if (token) await sendTextMessage(integration.phone_number_id, token, waId, t('no_employees'));
+            if (token) await sendTextMessage(integration.phone_number_id, token, waId, t('no_employees'), { businessId });
           } else {
             await session.update({
               state: 'EMPLOYEE_SELECT',
@@ -191,17 +197,17 @@ async function handleIncoming(req, res, next) {
           const t = getWaT(lang);
           if (result.reason === 'existing_same_day') {
             await session.update({ state: 'DATE_SELECT' });
-            await sendTextMessage(integration.phone_number_id, token, waId, t('existing_same_day'));
+            await sendTextMessage(integration.phone_number_id, token, waId, t('existing_same_day'), { businessId });
             const sameDayButtons = [
               { id: 'my_appointments', title: t('same_day_btn_my_appointments') },
               { id: 'other_day', title: t('same_day_btn_other_day') },
               { id: 'menu', title: t('same_day_btn_menu') },
             ];
-            await sendInteractiveButtons(integration.phone_number_id, token, waId, t('welcome_list_button'), sameDayButtons);
+            await sendInteractiveButtons(integration.phone_number_id, token, waId, t('welcome_list_button'), sameDayButtons, { businessId });
             return res.status(200).send('OK');
           } else {
             await session.update({ state: 'TIME_SELECT' });
-            await sendTextMessage(integration.phone_number_id, token, waId, t('slot_unavailable'));
+            await sendTextMessage(integration.phone_number_id, token, waId, t('slot_unavailable'), { businessId });
           }
         } else {
           await session.update({ state: result.reason === 'existing_same_day' ? 'DATE_SELECT' : 'TIME_SELECT' });
@@ -241,9 +247,9 @@ async function handleIncoming(req, res, next) {
         await session.update({ state: 'WELCOME', context_json: {} });
         if (token) {
           if (cancelResult.cancelled) {
-            await sendTextMessage(integration.phone_number_id, token, waId, t('appointment_cancelled_success'));
+            await sendTextMessage(integration.phone_number_id, token, waId, t('appointment_cancelled_success'), { businessId });
           } else if (cancelResult.messageKey) {
-            await sendTextMessage(integration.phone_number_id, token, waId, t(cancelResult.messageKey));
+            await sendTextMessage(integration.phone_number_id, token, waId, t(cancelResult.messageKey), { businessId });
           }
         }
         await whatsappReplyService.sendReplyForState(integration, waId, session);
