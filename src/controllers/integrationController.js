@@ -5,9 +5,10 @@ const { Op } = require('sequelize');
 
 async function getWhatsapp(req, res, next) {
   try {
-    const integration = await WhatsappIntegration.findOne({
-      where: { business_id: req.businessId },
-    });
+    const [integration, business] = await Promise.all([
+      WhatsappIntegration.findOne({ where: { business_id: req.businessId } }),
+      Business.findByPk(req.businessId, { attributes: ['phone_e164'] }),
+    ]);
     const sub = await subscriptionService.getActiveSubscription(req.businessId);
     const planIncludesWhatsApp = sub ? await subscriptionService.planIncludesWhatsApp(sub.plan_code) : false;
     const subscriptionActive = subscriptionService.isSubscriptionActive(sub);
@@ -31,6 +32,7 @@ async function getWhatsapp(req, res, next) {
       plan_includes_whatsapp: planIncludesWhatsApp,
       subscription_status: sub ? sub.status : null,
       trial_ends_at: trialEndsAt,
+      business_phone_e164: business?.phone_e164 ?? null,
     });
   } catch (err) {
     next(err);
