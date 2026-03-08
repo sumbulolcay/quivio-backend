@@ -11,10 +11,6 @@ const config = require('../src/config');
 
 async function main() {
   const alterFlag = process.argv.includes('--alter') || config.database.alter;
-  if (config.env === 'production' && alterFlag) {
-    console.error('Production ortamında --alter kullanılmamalı.');
-    process.exit(1);
-  }
   try {
     await sequelize.authenticate();
     console.log('Veritabanı bağlantısı OK.');
