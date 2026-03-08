@@ -24,6 +24,7 @@ async function getWhatsapp(req, res, next) {
     }
     res.json({
       connected,
+      waba_id: integration ? integration.waba_id : null,
       phone_number_id: integration ? integration.phone_number_id : null,
       status: integration ? integration.status : null,
       display_status,
@@ -127,9 +128,9 @@ async function testWhatsapp(req, res, next) {
       }
       to = business.phone_e164;
     }
-    const { sendTextMessage } = require('../providers/whatsapp/sendMessage');
+    const { sendTemplateMessage } = require('../providers/whatsapp/sendMessage');
     try {
-      await sendTextMessage(integration.phone_number_id, token, to, 'Test mesajı. Qivio WhatsApp bağlantınız aktiftir.', { businessId: req.businessId });
+      await sendTemplateMessage(integration.phone_number_id, token, to, 'hello_world', 'en_US', { businessId: req.businessId });
     } catch (sendErr) {
       const status = sendErr.status || sendErr.statusCode;
       if (status === 401) {

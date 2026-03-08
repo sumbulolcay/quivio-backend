@@ -60,6 +60,22 @@ async function sendTextMessage(phoneNumberId, accessToken, to, text, options = {
 }
 
 /**
+ * WhatsApp şablon mesajı gönderir (örn. hello_world).
+ * @param {string} templateName - Meta onaylı şablon adı (hello_world vb.)
+ * @param {string} [languageCode] - Dil kodu (en_US, tr vb.), varsayılan en_US
+ * @param {number} [options.businessId] - Varsa outbound mesaj loglanır
+ */
+async function sendTemplateMessage(phoneNumberId, accessToken, to, templateName, languageCode = 'en_US', options = {}) {
+  return request(phoneNumberId, accessToken, to, {
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+    },
+  }, { ...options, messageBody: `[template: ${templateName}]` });
+}
+
+/**
  * İnteraktif buton mesajı (en fazla 3 buton).
  * @param {Array<{id: string, title: string}>} buttons - id max 256, title max 20 karakter
  * @param {number} [options.businessId] - Varsa outbound mesaj loglanır
@@ -106,4 +122,4 @@ async function sendInteractiveList(phoneNumberId, accessToken, to, bodyText, but
   }, { ...options, messageBody: bodyText });
 }
 
-module.exports = { sendTextMessage, sendInteractiveButtons, sendInteractiveList };
+module.exports = { sendTextMessage, sendTemplateMessage, sendInteractiveButtons, sendInteractiveList };
