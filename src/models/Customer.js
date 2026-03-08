@@ -32,7 +32,7 @@ const Customer = sequelize.define('Customer', {
 }, {
   tableName: 'customers',
   indexes: [
-    { unique: true, fields: ['business_id', 'phone_e164'] },
+    { unique: true, fields: ['business_id', 'phone_e164'], name: 'customers_business_id_phone_e164_key' },
   ],
 });
 

@@ -20,7 +20,6 @@ const WhatsappIntegration = sequelize.define('WhatsappIntegration', {
   phone_number_id: {
     type: DataTypes.STRING(64),
     allowNull: false,
-    unique: true,
     comment: 'Webhook payload ile resolve için',
   },
   token_encrypted: {
@@ -35,6 +34,9 @@ const WhatsappIntegration = sequelize.define('WhatsappIntegration', {
   },
 }, {
   tableName: 'whatsapp_integrations',
+  indexes: [
+    { unique: true, fields: ['phone_number_id'], name: 'whatsapp_integrations_phone_number_id_key' },
+  ],
 });
 
 module.exports = WhatsappIntegration;

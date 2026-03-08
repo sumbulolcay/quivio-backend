@@ -10,7 +10,6 @@ const Business = sequelize.define('Business', {
   slug: {
     type: DataTypes.STRING(64),
     allowNull: false,
-    unique: true,
   },
   name: {
     type: DataTypes.STRING(255),
@@ -31,6 +30,9 @@ const Business = sequelize.define('Business', {
   },
 }, {
   tableName: 'businesses',
+  indexes: [
+    { unique: true, fields: ['slug'], name: 'businesses_slug_key' },
+  ],
 });
 
 module.exports = Business;

@@ -10,7 +10,6 @@ const BookingSettings = sequelize.define('BookingSettings', {
   business_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    unique: true,
     references: { model: 'businesses', key: 'id' },
     onDelete: 'CASCADE',
   },
@@ -35,6 +34,9 @@ const BookingSettings = sequelize.define('BookingSettings', {
   },
 }, {
   tableName: 'booking_settings',
+  indexes: [
+    { unique: true, fields: ['business_id'], name: 'booking_settings_business_id_key' },
+  ],
 });
 
 module.exports = BookingSettings;

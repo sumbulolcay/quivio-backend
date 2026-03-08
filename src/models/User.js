@@ -12,7 +12,6 @@ const User = sequelize.define('User', {
   email: {
     type: DataTypes.STRING(255),
     allowNull: false,
-    unique: true,
   },
   password_hash: {
     type: DataTypes.STRING(255),
@@ -34,7 +33,7 @@ const User = sequelize.define('User', {
 }, {
   tableName: 'users',
   indexes: [
-    { unique: true, fields: ['email'] },
+    { unique: true, fields: ['email'], name: 'users_email_key' },
   ],
 });
 

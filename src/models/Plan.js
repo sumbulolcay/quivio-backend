@@ -10,7 +10,6 @@ const Plan = sequelize.define('Plan', {
   code: {
     type: DataTypes.STRING(64),
     allowNull: false,
-    unique: true,
   },
   name: {
     type: DataTypes.STRING(128),
@@ -33,6 +32,9 @@ const Plan = sequelize.define('Plan', {
   },
 }, {
   tableName: 'plans',
+  indexes: [
+    { unique: true, fields: ['code'], name: 'plans_code_key' },
+  ],
 });
 
 module.exports = Plan;

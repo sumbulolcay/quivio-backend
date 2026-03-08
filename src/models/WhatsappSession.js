@@ -40,7 +40,7 @@ const WhatsappSession = sequelize.define('WhatsappSession', {
 }, {
   tableName: 'whatsapp_sessions',
   indexes: [
-    { unique: true, fields: ['business_id', 'wa_id'] },
+    { unique: true, fields: ['business_id', 'wa_id'], name: 'whatsapp_sessions_business_id_wa_id_key' },
   ],
 });
 

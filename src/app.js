@@ -45,78 +45,11 @@ app.get('/health', (req, res) => {
 
 app.use(errorHandler);
 
-async function ensureQueueEntryColumns() {
-  const [results] = await sequelize.query(`
-    SELECT column_name FROM information_schema.columns
-    WHERE table_name = 'queue_entries' AND table_schema = 'public'
-  `);
-  const columns = (results || []).map((r) => r.column_name);
-  if (columns.includes('queue_date') && columns.includes('position')) return;
-
-  if (!columns.includes('queue_date')) {
-    await sequelize.query('ALTER TABLE queue_entries ADD COLUMN queue_date DATE');
-    await sequelize.query("UPDATE queue_entries SET queue_date = CURRENT_DATE WHERE queue_date IS NULL");
-    await sequelize.query('ALTER TABLE queue_entries ALTER COLUMN queue_date SET NOT NULL');
-  }
-  if (!columns.includes('position')) {
-    await sequelize.query('ALTER TABLE queue_entries ADD COLUMN position INTEGER');
-    await sequelize.query('UPDATE queue_entries SET position = 0 WHERE position IS NULL');
-  }
-  if (!columns.includes('source_channel')) {
-    await sequelize.query('ALTER TABLE queue_entries ADD COLUMN source_channel VARCHAR(32)');
-  }
-}
-
-async function ensureBusinessPhoneColumn() {
-  const [results] = await sequelize.query(`
-    SELECT column_name FROM information_schema.columns
-    WHERE table_name = 'businesses' AND table_schema = 'public'
-  `);
-  const columns = (results || []).map((r) => r.column_name);
-  if (columns.includes('phone_e164')) return;
-
-  await sequelize.query('ALTER TABLE businesses ADD COLUMN phone_e164 VARCHAR(32)');
-  await sequelize.query("UPDATE businesses SET phone_e164 = '+900000000000' WHERE phone_e164 IS NULL");
-  await sequelize.query('ALTER TABLE businesses ALTER COLUMN phone_e164 SET NOT NULL');
-}
-
-async function ensureBusinessSettingsColumns() {
-  const [results] = await sequelize.query(`
-    SELECT column_name FROM information_schema.columns
-    WHERE table_name = 'business_settings' AND table_schema = 'public'
-  `);
-  const columns = (results || []).map((r) => r.column_name);
-  if (!columns.includes('employee_selection_label')) {
-    await sequelize.query('ALTER TABLE business_settings ADD COLUMN employee_selection_label VARCHAR(255)');
-  }
-  if (!columns.includes('logo_url')) {
-    await sequelize.query('ALTER TABLE business_settings ADD COLUMN logo_url VARCHAR(512)');
-  }
-  if (!columns.includes('whatsapp_lang')) {
-    await sequelize.query("ALTER TABLE business_settings ADD COLUMN whatsapp_lang VARCHAR(8) NOT NULL DEFAULT 'tr'");
-  }
-}
-
-async function ensureBookingSettingsColumns() {
-  const [results] = await sequelize.query(`
-    SELECT column_name FROM information_schema.columns
-    WHERE table_name = 'booking_settings' AND table_schema = 'public'
-  `);
-  const columns = (results || []).map((r) => r.column_name);
-  if (!columns.includes('queue_requires_employee')) {
-    await sequelize.query('ALTER TABLE booking_settings ADD COLUMN queue_requires_employee BOOLEAN NOT NULL DEFAULT false');
-  }
-}
-
 async function start() {
   try {
     await sequelize.authenticate();
     const alter = config.env !== 'production' && config.database.alter;
     await sequelize.sync({ alter });
-    await ensureQueueEntryColumns();
-    await ensureBusinessPhoneColumn();
-    await ensureBusinessSettingsColumns();
-    await ensureBookingSettingsColumns();
     await seedPlansIfNeeded();
     await seedSuperAdminIfNeeded();
     await ensureUsersFromBusinesses();

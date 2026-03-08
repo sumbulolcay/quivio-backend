@@ -32,7 +32,7 @@ const WaUser = sequelize.define('WaUser', {
 }, {
   tableName: 'wa_users',
   indexes: [
-    { unique: true, fields: ['business_id', 'wa_id'] },
+    { unique: true, fields: ['business_id', 'wa_id'], name: 'wa_users_business_id_wa_id_key' },
   ],
 });
 

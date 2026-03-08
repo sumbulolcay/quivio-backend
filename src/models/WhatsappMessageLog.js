@@ -48,7 +48,7 @@ const WhatsappMessageLog = sequelize.define('WhatsappMessageLog', {
   timestamps: true,
   updatedAt: false,
   indexes: [
-    { unique: true, fields: ['business_id', 'message_id'] },
+    { unique: true, fields: ['business_id', 'message_id'], name: 'whatsapp_message_logs_business_id_message_id_key' },
   ],
 });
 
