@@ -104,6 +104,8 @@ async function disconnectWhatsapp(req, res, next) {
   }
 }
 
+const WHATSAPP_TEXT_MAX_LENGTH = 4096;
+
 async function testWhatsapp(req, res, next) {
   try {
     await subscriptionService.requireCoreSubscription(req.businessId);
@@ -121,7 +123,7 @@ async function testWhatsapp(req, res, next) {
     if (!token) {
       return res.status(400).json({ code: 'no_token', message: 'Bağlantı token\'ı yok; yeniden bağlayın' });
     }
-    const { phone } = req.body || {};
+    const { phone, template, template_language, message } = req.body || {};
     let to = phone;
     if (!to) {
       const business = await Business.findByPk(req.businessId, { attributes: ['phone_e164'] });
@@ -130,9 +132,26 @@ async function testWhatsapp(req, res, next) {
       }
       to = business.phone_e164;
     }
-    const { sendTemplateMessage } = require('../providers/whatsapp/sendMessage');
+    const templateName = typeof template === 'string' && template.trim() ? template.trim() : null;
+    const messageText = typeof message === 'string' && message.trim() ? message.trim() : null;
+    if (messageText !== null && messageText.length > WHATSAPP_TEXT_MAX_LENGTH) {
+      return res.status(400).json({
+        code: 'message_too_long',
+        message: `Metin en fazla ${WHATSAPP_TEXT_MAX_LENGTH} karakter olabilir.`,
+        max_length: WHATSAPP_TEXT_MAX_LENGTH,
+      });
+    }
+    const { sendTemplateMessage, sendTextMessage } = require('../providers/whatsapp/sendMessage');
+    const opts = { businessId: req.businessId };
+    const languageCode = typeof template_language === 'string' && template_language.trim() ? template_language.trim() : 'en_US';
     try {
-      await sendTemplateMessage(integration.phone_number_id, token, to, 'hello_world', 'en_US', { businessId: req.businessId });
+      if (templateName) {
+        await sendTemplateMessage(integration.phone_number_id, token, to, templateName, languageCode, opts);
+      } else if (messageText !== null) {
+        await sendTextMessage(integration.phone_number_id, token, to, messageText, opts);
+      } else {
+        await sendTemplateMessage(integration.phone_number_id, token, to, 'hello_world', 'en_US', opts);
+      }
     } catch (sendErr) {
       const status = sendErr.status || sendErr.statusCode;
       if (status === 401) {
