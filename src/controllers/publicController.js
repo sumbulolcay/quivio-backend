@@ -39,9 +39,16 @@ async function getEmployees(req, res, next) {
     if (!slug) {
       return sendError(req, res, 400, 'validation_error', 'slug gerekli');
     }
+    const session = getCustomerSession(req);
+    if (!session || session.businessId === undefined || !session.customerId) {
+      return sendError(req, res, 401, 'session_required', 'Önce OTP ile giriş yapın');
+    }
     const business = await Business.findOne({ where: { slug } });
     if (!business) {
       return sendError(req, res, 404, 'not_found', 'İşletme bulunamadı');
+    }
+    if (business.id !== session.businessId) {
+      return sendError(req, res, 403, 'forbidden', 'Oturum bu işletme ile eşleşmiyor');
     }
     await subscriptionService.requireCoreSubscription(business.id);
     const list = await Employee.findAll({
@@ -61,9 +68,16 @@ async function getAvailability(req, res, next) {
     if (!slug || !date || !employeeId) {
       return sendError(req, res, 400, 'validation_error', 'slug, date ve employeeId gerekli');
     }
+    const session = getCustomerSession(req);
+    if (!session || session.businessId === undefined || !session.customerId) {
+      return sendError(req, res, 401, 'session_required', 'Önce OTP ile giriş yapın');
+    }
     const business = await Business.findOne({ where: { slug } });
     if (!business) {
       return sendError(req, res, 404, 'not_found', 'İşletme bulunamadı');
+    }
+    if (business.id !== session.businessId) {
+      return sendError(req, res, 403, 'forbidden', 'Oturum bu işletme ile eşleşmiyor');
     }
     await subscriptionService.requireCoreSubscription(business.id);
     const slots = await availabilityService.getSlotsForEmployee(business.id, parseInt(employeeId, 10), date);

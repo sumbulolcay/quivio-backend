@@ -25,7 +25,7 @@ module.exports = {
   cookie: {
     secret: process.env.COOKIE_SECRET || 'dev-cookie-secret-change-in-production',
     name: 'customer_session',
-    maxAgeDays: 180,
+    maxAgeDays: parseInt(process.env.COOKIE_MAX_AGE_DAYS, 10) || 7,
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
